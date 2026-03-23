@@ -11,8 +11,8 @@
 const mongoose = require("mongoose");
 
 // ── Your MongoDB connection ──────────────────────────────────────────
-const MONGO_URI =
-  "mongodb://ChamberADmin:Chamber001@ac-i77d6qq-shard-00-00.zesblyi.mongodb.net:27017,ac-i77d6qq-shard-00-01.zesblyi.mongodb.net:27017,ac-i77d6qq-shard-00-02.zesblyi.mongodb.net:27017/chamberDB?ssl=true&replicaSet=atlas-tpytdm-shard-0&authSource=admin&retryWrites=true&w=majority&appName=CHAMBERS";
+require('dotenv').config({ path: __dirname + '/.env' });
+const uri = process.env.MONGO_URI;
 
 // ── ADD / EDIT YOUR USERS HERE ───────────────────────────────────────
 // role: "admin"  → can see ALL chambers
@@ -23,15 +23,15 @@ const MONGO_URI =
 const USERS = [
   {
     name:      "Admin",
-    email:     "admin@smartcultivation.com",
-    password:  "admin123",
+    email:     "your email",
+    password:  "your password",
     role:      "admin",
     deviceId:  null,            // admin sees all devices
   },
   {
-    name:      "Saniya",
-    email:     "saniya@smartcultivation.com",
-    password:  "saniya123",
+    name:      "your name",
+    email:     "your email",
+    password:  "your password",
     role:      "user",
     deviceId:  "chamber-001",   // must match telemetry deviceId exactly
   },

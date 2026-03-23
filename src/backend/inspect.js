@@ -3,12 +3,13 @@
 
 const mongoose = require("mongoose");
 
-const URI = "mongodb://ChamberADmin:Chamber001@ac-i77d6qq-shard-00-00.zesblyi.mongodb.net:27017,ac-i77d6qq-shard-00-01.zesblyi.mongodb.net:27017,ac-i77d6qq-shard-00-02.zesblyi.mongodb.net:27017/chamberDB?ssl=true&replicaSet=atlas-tpytdm-shard-0&authSource=admin&retryWrites=true&w=majority&appName=CHAMBERS";
+require('dotenv').config();
+const uri = process.env.MONGO_URI;
 
 async function inspect() {
   try {
     console.log("⏳ Connecting to chamberDB...");
-    await mongoose.connect(URI, { serverSelectionTimeoutMS: 15000 });
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
     console.log("✅ Connected!\n");
 
     const db = mongoose.connection.db;
