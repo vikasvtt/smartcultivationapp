@@ -4,10 +4,13 @@ import Home from "../pages/Home";
 import Login from "../pages/Login";
 import Signup from "../pages/Signup";
 import Dashboard from "../pages/Dashboard";
+import DeviceConfig from "../pages/Deviceconfig";
+
 
 // Redirects to /login if user is not logged in
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return <div>Loading...</div>;
   return user ? children : <Navigate to="/login" replace />;
 }
 
@@ -20,6 +23,9 @@ export default function AppRoutes() {
       <Route path="/dashboard" element={
         <ProtectedRoute><Dashboard /></ProtectedRoute>
       } />
+      <Route path="/config" element={
+        <ProtectedRoute><DeviceConfig /></ProtectedRoute>
+        } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

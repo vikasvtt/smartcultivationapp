@@ -1,5 +1,4 @@
-// ── src/context/AuthContext.jsx ──────────────────────────────────────
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import { apiLogin, apiSignup } from "../services/api";
 
 const AuthContext = createContext(null);
@@ -7,26 +6,44 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser]   = useState(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
-const login = async (email, password) => {
-  try {
-    setError("");
-    const data = await apiLogin(email, password);
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      if (saved && token) setUser(JSON.parse(saved));
+    } catch (_) {}
+    setLoading(false);
+  }, []);
 
-    localStorage.setItem("token", data.token); // ✅ ADD
-    setUser(data.user);
+  const login = async (email, password) => {
+    try {
+      setError("");
+      const data = await apiLogin(email, password);
+      
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
 
-    return true;
-  } catch (err) {
-    setError(err.message || "Login failed");
-    return false;
-  }
-};
+     
+
+      setUser(data.user);
+      return true;
+    } catch (err) {
+      setError(err.message || "Login failed");
+      return false;
+    }
+  };
+
   const signup = async (name, email, password, role) => {
     try {
       setError("");
-      const userData = await apiSignup(name, email, password, role);
-      setUser(userData);
+      const data = await apiSignup(name, email, password, role);
+      // ✅ Save token from signup too
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      setUser(data.user);
       return true;
     } catch (err) {
       setError(err.message || "Signup failed");
@@ -34,10 +51,15 @@ const login = async (email, password) => {
     }
   };
 
-  const logout = () => { setUser(null); setError(""); };
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    setError("");
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, error, setError }}>
+    <AuthContext.Provider value={{ user, login, signup, logout, error, setError, loading }}>
       {children}
     </AuthContext.Provider>
   );
