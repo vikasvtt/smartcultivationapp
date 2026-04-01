@@ -37,9 +37,10 @@ const STACK = [
 
 const TEAM = [
   { name:"Saniya",   role:"Frontend Developer",  color:"#4ade80" },
-  { name:"Member 2", role:"Backend Developer",   color:"#34d399" },
-  { name:"Member 3", role:"IoT & Hardware",      color:"#6ee7b7" },
-  { name:"Member 4", role:"Database & API",      color:"#a7f3d0" },
+  { name:"Unnati", role:"Backend Developer",   color:"#34d399" },
+  { name:"Darshan", role:"IoT & Hardware",      color:"#6ee7b7" },
+  { name:"Vikas", role:"Database & API",      color:"#a7f3d0" },
+  { name:"Aditya", role:"DevOps & Deployment", color:"#bbf7d0" }
 ];
 
 const IMGS = {
