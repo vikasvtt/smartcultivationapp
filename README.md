@@ -1,70 +1,269 @@
-# Getting Started with Create React App
+# 🌱 Smart Cultivation System (IoT + MERN)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+<p align="center">
+  <b>🚀 Real-Time Smart Agriculture Automation using ESP32, MERN & AWS IoT</b><br/>
+  <i>Monitor • Automate • Optimize</i>
+</p>
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 📌 Badges
 
-### `npm start`
+![Status](https://img.shields.io/badge/Status-Active-success)
+![IoT](https://img.shields.io/badge/Domain-IoT-blue)
+![MERN](https://img.shields.io/badge/Stack-MERN-green)
+![License](https://img.shields.io/badge/License-Educational-orange)
+![Build](https://img.shields.io/badge/Build-Passing-brightgreen)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🚀 Overview
 
-### `npm test`
+The **Smart Cultivation System** is an end-to-end IoT solution designed to automate agricultural environments using real-time data and rule-based decision making.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+It connects:
 
-### `npm run build`
+- 🌡️ Sensors (Temperature, Humidity, Soil)
+- ⚡ Actuators (Fan, Motor, Light)
+- 📡 ESP32 (Edge Device)
+- ☁️ AWS IoT (Cloud)
+- 🌐 MERN Stack (Dashboard)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+---
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🎯 Key Features
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 🧠 Intelligent Automation Engine
 
-### `npm run eject`
+- Multi-condition rules
+- AND / OR logic support
+- Dynamic configuration from backend
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 📊 Real-Time Monitoring
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+- Temperature 🌡️
+- Humidity 💧
+- Soil Moisture 🌱
+- Soil Status (DRY / WET)
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### ⚙️ Remote Control
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+- Fan control
+- Irrigation motor
+- Lighting system
 
-## Learn More
+### ☁️ Cloud Integration
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+- AWS IoT Core (MQTT)
+- Real-time telemetry updates
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 🌐 Dashboard
 
-### Code Splitting
+- Live sensor data
+- Rule configuration UI
+- Device status tracking
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+---
 
-### Analyzing the Bundle Size
+## 🏗️ System Architecture
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+```
+        ┌───────────────┐
+        │   Sensors     │
+        │ (Temp/Hum/Soil)
+        └──────┬────────┘
+               │
+        ┌──────▼────────┐
+        │    ESP32      │
+        │ (Logic Engine)│
+        └──────┬────────┘
+               │
+     ┌─────────▼──────────┐
+     │   Backend API      │
+     │ (Node + Express)   │
+     └─────────┬──────────┘
+               │
+        ┌──────▼───────┐
+        │   MongoDB    │
+        └──────┬───────┘
+               │
+        ┌──────▼────────┐
+        │   AWS IoT     │
+        └──────┬────────┘
+               │
+        ┌──────▼────────┐
+        │ React Frontend│
+        └───────────────┘
+```
 
-### Making a Progressive Web App
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## 🧩 Tech Stack
 
-### Advanced Configuration
+### 🔹 Hardware
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- ESP32
+- DHT22 Sensor
+- Soil Moisture Sensor
+- Relay Module
 
-### Deployment
+### 🔹 Software
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- **Frontend:** React.js + Material UI
+- **Backend:** Node.js + Express.js
+- **Database:** MongoDB
+- **Cloud:** AWS IoT Core (MQTT)
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## ⚙️ How It Works
+
+1. ESP32 reads sensor values
+2. Fetches automation rules from backend
+3. Evaluates conditions (AND / OR logic)
+4. Controls relays accordingly
+5. Sends telemetry to AWS IoT
+6. Dashboard displays live data
+
+---
+
+## 📡 Example Automation Rule
+
+```json
+{
+  "motor": {
+    "enabled": true,
+    "logic": "AND",
+    "conditions": [
+      { "parameter": "soil", "operator": "<", "value": 1450 },
+      { "parameter": "temperature", "operator": "<=", "value": 25 }
+    ]
+  }
+}
+```
+
+---
+
+## 📸 Screenshots (Add Yours)
+
+> Add screenshots in a `/screenshots` folder and link them here
+
+```
+/screenshots/dashboard.png
+/screenshots/rules.png
+/screenshots/device-status.png
+```
+
+---
+
+## 🛠️ Setup Guide
+
+### 1️⃣ Clone Repository
+
+```bash
+git clone <your-repo-url>
+cd project-folder
+```
+
+---
+
+### 2️⃣ Frontend Setup
+
+```bash
+npm install
+npm start
+```
+
+👉 Runs on: http://localhost:3000
+
+---
+
+### 3️⃣ Backend Setup
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+---
+
+### 4️⃣ ESP32 Setup
+
+- Upload Arduino code
+- Configure:
+
+  - WiFi credentials
+  - Backend API URL
+  - AWS certificates
+
+---
+
+## 🔐 Environment Variables
+
+Create `.env` file:
+
+```
+MONGO_URI=your_mongodb_uri
+PORT=5000
+```
+
+---
+
+## ⚠️ Important Notes
+
+- Relay module uses **ACTIVE LOW logic**
+- Ensure **common GND**
+- Use external power for relays (JD-VCC)
+- Backend JSON must match ESP structure
+
+---
+
+## 🚀 Future Enhancements
+
+- 🤖 AI-based irrigation system
+- 📱 Mobile application
+- 📊 Advanced analytics dashboard
+- 🔔 Alerts & notifications
+- ⏱️ Time-based scheduling
+
+---
+
+## 👨‍💻 Contributors
+
+- Darshan Janganure
+- Pooja Madiwalar
+
+---
+
+## 📜 License
+
+This project is for **academic and educational purposes only**.
+
+---
+
+## ⭐ Show Your Support
+
+If you like this project:
+
+👉 Star ⭐ the repo
+👉 Fork 🍴 it
+👉 Contribute 💡
+
+---
+
+## 💡 Final Thought
+
+This project is a **complete real-world IoT system** combining:
+
+👉 Embedded Systems
+👉 Cloud Computing
+👉 Web Development
+
+Perfect for:
+
+- 🚀 Hackathons
+- 💼 Placements
+- 📂 Portfolio
+
+---
