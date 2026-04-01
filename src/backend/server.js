@@ -324,7 +324,7 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 app.listen(PORT, "0.0.0.0", () => {
   console.log("─────────────────────────────────────────");
   console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`❤️ Health → ${BASE_URL}/api/health`);
-  console.log(`📡 SSE → ${BASE_URL}/api/live`);
+  console.log(`❤️ Health → ${BASE_URL}api/health`);
+  console.log(`📡 SSE → ${BASE_URL}api/live`);
   console.log("─────────────────────────────────────────");
 });
