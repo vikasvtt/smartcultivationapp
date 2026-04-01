@@ -1,6 +1,6 @@
 // ── src/services/api.js ──────────────────────────────────────────────
 
-const BASE = "http://localhost:5000/api";
+const BASE = process.env.REACT_APP_API_URL + "/api";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
