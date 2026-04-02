@@ -319,6 +319,9 @@ app.post(
 
 // ════════════════════════════════════════════════════════════════════
 // HEALTH
+app.get("/health", (req, res) => {
+  res.send("OK");
+});
 // ════════════════════════════════════════════════════════════════════
 app.get("/api/firmware/info", async (req, res) => {
   const config = await Config.findOne({ deviceId: "chamber-001" });
