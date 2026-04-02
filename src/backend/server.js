@@ -23,8 +23,6 @@ app.use(
 );
 app.use(express.json());
 
-app.use("/firmware", express.static(path.join(__dirname, "firmware")));
-
 // ── MongoDB Connection ────────────────────────────────────────────────
 mongoose
   .connect(process.env.MONGO_URI)
@@ -305,11 +303,13 @@ app.post(
 );
 
 app.get("/api/firmware/info", async (req, res) => {
-  res.json({
-    version: "1.0.0",
-    url: "/firmware/esp32.bin",
-    updatedAt: new Date(),
-  });
+  const config = await Config.findOne({ deviceId: "chamber-001" });
+
+  if (!config?.firmware) {
+    return res.json({ version: null, url: null });
+  }
+
+  res.json(config.firmware);
 });
 
 // ════════════════════════════════════════════════════════════════════
