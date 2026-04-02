@@ -15,6 +15,8 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 app.use(
   cors({
     origin: ["https://growio-eight.vercel.app"],
@@ -28,9 +30,18 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ Connected to chamberDB");
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log("─────────────────────────────────────────");
+      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`❤️ Health → ${BASE_URL}api/health`);
+      console.log(`📡 SSE → ${BASE_URL}api/live`);
+      console.log("─────────────────────────────────────────");
+
+      startPolling(); // ✅ now safe
+    });
   })
   .catch((err) => console.error(err));
-
 // ── Schemas ──────────────────────────────────────────────────────────
 const telemetrySchema = new mongoose.Schema(
   {
@@ -322,14 +333,3 @@ app.get("/api/firmware/info", async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 // START
 // ════════════════════════════════════════════════════════════════════
-
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log("─────────────────────────────────────────");
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`❤️ Health → ${BASE_URL}api/health`);
-  console.log(`📡 SSE → ${BASE_URL}api/live`);
-  console.log("─────────────────────────────────────────");
-  startPolling();
-});
