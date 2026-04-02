@@ -239,8 +239,9 @@ app.post("/api/config/:deviceId", auth, async (req, res) => {
 const AWS = require("aws-sdk");
 const multer = require("multer");
 const fs = require("fs");
+const os = require("os");
 
-const upload = multer({ dest: "temp/" });
+const upload = multer({ dest: os.tmpdir() });
 
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY,
