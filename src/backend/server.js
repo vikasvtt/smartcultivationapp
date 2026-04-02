@@ -34,7 +34,7 @@ mongoose
     app.listen(PORT, "0.0.0.0", () => {
       console.log("─────────────────────────────────────────");
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`❤️ Health → ${BASE_URL}api/health`);
+      console.log(`❤️ Health → ${BASE_URL}health`);
       console.log(`📡 SSE → ${BASE_URL}api/live`);
       console.log("─────────────────────────────────────────");
 
@@ -237,6 +237,7 @@ app.post("/api/config/:deviceId", auth, async (req, res) => {
       },
       { upsert: true, new: true }
     );
+    await updateShadow(deviceId, config);
 
     console.log(`⚙️ Config saved for ${deviceId}`);
 
@@ -287,7 +288,10 @@ app.post(
 
       const firmwareUrl = data.Location;
 
-      const deviceId = "chamber-001";
+      const { deviceId } = req.body;
+      if (!deviceId) {
+        return res.status(400).json({ error: "deviceId required" });
+      }
 
       const updated = await Config.findOneAndUpdate(
         { deviceId },
@@ -304,6 +308,7 @@ app.post(
       fs.unlinkSync(req.file.path);
 
       console.log("🔥 DB UPDATED:", updated.firmware);
+      await updateShadow(deviceId, updated);
 
       res.json({
         success: true,
@@ -332,6 +337,32 @@ app.get("/api/firmware/info", async (req, res) => {
 
   res.json(config.firmware);
 });
+
+const iotdata = new AWS.IotData({
+  endpoint: process.env.AWS_IOT_ENDPOINT, // ⚠️ REQUIRED
+});
+
+async function updateShadow(deviceId, config) {
+  try {
+    const params = {
+      thingName: deviceId,
+      payload: JSON.stringify({
+        state: {
+          desired: {
+            relays: config.relays || {},
+            firmware: config.firmware || {},
+          },
+        },
+      }),
+    };
+
+    await iotdata.updateThingShadow(params).promise();
+
+    console.log(`☁️ Shadow updated for ${deviceId}`);
+  } catch (err) {
+    console.error("❌ Shadow update error:", err.message);
+  }
+}
 
 // ════════════════════════════════════════════════════════════════════
 // START
