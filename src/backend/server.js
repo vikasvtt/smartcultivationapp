@@ -14,7 +14,7 @@ const auth = require("./middleware/auth");
 dotenv.config();
 
 const app = express();
-
+const PORT = process.env.PORT || 5000;
 app.use(
   cors({
     origin: ["https://growio-eight.vercel.app"],
@@ -28,9 +28,8 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ Connected to chamberDB");
-    startPolling();
   })
-  .catch((err) => console.error("❌ MongoDB error:", err.message));
+  .catch((err) => console.error(err));
 
 // ── Schemas ──────────────────────────────────────────────────────────
 const telemetrySchema = new mongoose.Schema(
@@ -103,28 +102,32 @@ app.get("/api/live", (req, res) => {
 const lastSeenTime = {};
 
 async function pollForNewReadings() {
-  const devices = await Telemetry.distinct("deviceId");
+  try {
+    const devices = await Telemetry.distinct("deviceId");
 
-  for (const id of devices) {
-    const doc = await Telemetry.findOne({ deviceId: id }).sort({ time: -1 });
+    for (const id of devices) {
+      const doc = await Telemetry.findOne({ deviceId: id }).sort({ time: -1 });
 
-    if (!doc) continue;
+      if (!doc) continue;
 
-    const time = new Date(doc.time).getTime();
+      const time = new Date(doc.time).getTime();
 
-    if (lastSeenTime[id] !== time) {
-      lastSeenTime[id] = time;
+      if (lastSeenTime[id] !== time) {
+        lastSeenTime[id] = time;
 
-      sseClients.forEach((c) => {
-        c.write(`data: ${JSON.stringify(doc)}\n\n`);
-      });
+        sseClients.forEach((c) => {
+          c.write(`data: ${JSON.stringify(doc)}\n\n`);
+        });
+      }
     }
+  } catch (err) {
+    console.error("Polling error:", err.message);
   }
 }
 
 function startPolling() {
   console.log("🔄 Polling started...");
-  setInterval(pollForNewReadings, 3000);
+  setInterval(pollForNewReadings, 7000);
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -303,16 +306,6 @@ app.post(
   }
 );
 
-app.get("/api/firmware/info", async (req, res) => {
-  const config = await Config.findOne({ deviceId: "chamber-001" });
-
-  if (!config?.firmware) {
-    return res.json({ version: null, url: null });
-  }
-
-  res.json(config.firmware);
-});
-
 // ════════════════════════════════════════════════════════════════════
 // HEALTH
 // ════════════════════════════════════════════════════════════════════
@@ -329,7 +322,7 @@ app.get("/api/firmware/info", async (req, res) => {
 // ════════════════════════════════════════════════════════════════════
 // START
 // ════════════════════════════════════════════════════════════════════
-const PORT = process.env.PORT || 5000;
+
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 
 app.listen(PORT, "0.0.0.0", () => {
@@ -338,4 +331,5 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`❤️ Health → ${BASE_URL}api/health`);
   console.log(`📡 SSE → ${BASE_URL}api/live`);
   console.log("─────────────────────────────────────────");
+  startPolling();
 });
