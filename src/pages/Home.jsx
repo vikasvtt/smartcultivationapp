@@ -36,11 +36,46 @@ const STACK = [
 ];
 
 const TEAM = [
-  { name:"Saniya",   role:"Frontend Developer",  color:"#4ade80" },
-  { name:"Unnati", role:"Backend Developer",   color:"#34d399" },
-  { name:"Darshan", role:"IoT & Hardware",      color:"#6ee7b7" },
-  { name:"Vikas", role:"Database & API",      color:"#a7f3d0" },
-  { name:"Aditya", role:"DevOps & Deployment", color:"#bbf7d0" }
+  {
+    name:"Saniya",
+    role:"Frontend Developer",
+    color:"#4ade80",
+    imageUrl:"https://api.dicebear.com/9.x/adventurer/svg?seed=Saniya",
+    linkedin:"#",
+    github:"#",
+  },
+  {
+    name:"Unnati",
+    role:"Backend Developer",
+    color:"#34d399",
+    imageUrl:"https://api.dicebear.com/9.x/adventurer/svg?seed=Unnati",
+    linkedin:"#",
+    github:"#",
+  },
+  {
+    name:"Darshan",
+    role:"IoT & Hardware",
+    color:"#6ee7b7",
+    imageUrl:"https://api.dicebear.com/9.x/adventurer/svg?seed=Darshan",
+    linkedin:"#",
+    github:"#",
+  },
+  {
+    name:"Vikas",
+    role:"Database & API",
+    color:"#a7f3d0",
+    imageUrl:"https://api.dicebear.com/9.x/adventurer/svg?seed=Vikas",
+    linkedin:"#",
+    github:"#",
+  },
+  {
+    name:"Aditya",
+    role:"DevOps & Deployment",
+    color:"#bbf7d0",
+    imageUrl:"https://api.dicebear.com/9.x/adventurer/svg?seed=Aditya",
+    linkedin:"#",
+    github:"#",
+  },
 ];
 
 const IMGS = {
@@ -111,6 +146,22 @@ function Orb({ x, y, size, delay = 0 }) {
       transition={{ duration: 6 + delay, repeat: Infinity, ease: "easeInOut", delay }}
       style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: size, height: size, borderRadius: "50%", background: "radial-gradient(circle, rgba(74,222,128,0.45) 0%, transparent 70%)", pointerEvents: "none" }}
     />
+  );
+}
+
+function LinkedInIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M6.94 8.5H3.56V20h3.38V8.5Zm.22-3.56A1.97 1.97 0 0 0 5.2 3a1.97 1.97 0 0 0-1.97 1.94c0 1.07.87 1.94 1.94 1.94h.03A1.96 1.96 0 0 0 7.16 4.94ZM20.44 13.01c0-3.46-1.85-5.07-4.32-5.07a3.74 3.74 0 0 0-3.35 1.84V8.5H9.39c.04.84 0 11.5 0 11.5h3.38v-6.42c0-.34.03-.68.13-.92.27-.68.88-1.39 1.9-1.39 1.34 0 1.88 1.03 1.88 2.54V20h3.38v-6.99Z" />
+    </svg>
+  );
+}
+
+function GitHubIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+      <path d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.05c-3.34.73-4.04-1.41-4.04-1.41-.55-1.38-1.33-1.75-1.33-1.75-1.09-.74.08-.72.08-.72 1.2.08 1.84 1.24 1.84 1.24 1.08 1.84 2.82 1.31 3.5 1 .11-.79.42-1.32.76-1.63-2.66-.3-5.46-1.33-5.46-5.94 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.4 11.4 0 0 1 12 6.6c1.02 0 2.05.14 3.01.4 2.28-1.55 3.29-1.23 3.29-1.23.67 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.62-2.8 5.63-5.48 5.93.43.38.82 1.11.82 2.24v3.32c0 .32.22.69.83.57A12 12 0 0 0 12 .5Z" />
+    </svg>
   );
 }
 
@@ -214,8 +265,12 @@ export default function Home() {
         .cta-shine { position:relative; overflow:hidden; }
         .cta-shine::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent); transform:translateX(-100%); transition:transform 0.55s; }
         .cta-shine:hover::before { transform:translateX(100%); }
-        .team-card { transition: all 0.3s cubic-bezier(.22,1,.36,1); }
-        .team-card:hover { transform: translateY(-6px); border-color: rgba(74,222,128,0.3) !important; background: rgba(74,222,128,0.045) !important; box-shadow: 0 24px 60px rgba(0,0,0,0.35) !important; }
+        .team-card { transition: all 0.32s cubic-bezier(.22,1,.36,1); }
+        .team-card:hover { transform: translateY(-8px); border-color: rgba(96,165,250,0.28) !important; box-shadow: 0 28px 60px rgba(0,0,0,0.42) !important; }
+        .team-card:hover .team-profile-ring { box-shadow: 0 0 0 8px rgba(96,165,250,0.08); transform: scale(1.02); }
+        .team-card:hover .team-name { color: #7dd3fc !important; }
+        .team-social { transition: all 0.25s cubic-bezier(.22,1,.36,1); }
+        .team-social:hover { transform: translateY(-2px) scale(1.08); }
         .chip { transition: all 0.2s; cursor:default; }
         .chip:hover { border-color: rgba(74,222,128,0.5) !important; color: #4ade80 !important; background: rgba(74,222,128,0.08) !important; }
       `}</style>
@@ -644,26 +699,146 @@ export default function Home() {
       {/* ╔══════════════════════════════════════╗
           ║  TEAM                                ║
           ╚══════════════════════════════════════╝ */}
-      <Box id="team" sx={{ py:{ xs:10,md:14 },borderTop:"1px solid rgba(74,222,128,0.06)",position:"relative",overflow:"hidden" }}>
-        <Box sx={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:600,height:600,borderRadius:"50%",background:"radial-gradient(circle,rgba(45,106,79,0.08) 0%,transparent 70%)",pointerEvents:"none" }} />
-        <Container maxWidth="xl" sx={{ position:"relative",zIndex:1,px:{ xs:3,md:8 } }}>
+      <Box
+        id="team"
+        sx={{
+          py:{ xs:10,md:14 },
+          borderTop:"1px solid rgba(74,222,128,0.06)",
+          position:"relative",
+          overflow:"hidden",
+          background:"radial-gradient(circle at top, rgba(30,64,175,0.16), transparent 30%), linear-gradient(180deg, #040912 0%, #08111e 48%, #050b14 100%)",
+        }}
+      >
+        <Box
+          sx={{
+            position:"absolute",
+            inset:0,
+            opacity:0.35,
+            backgroundImage:"radial-gradient(circle at 1px 1px, rgba(125,211,252,0.18) 1px, transparent 0)",
+            backgroundSize:"20px 20px",
+            pointerEvents:"none",
+          }}
+        />
+        <Box sx={{ position:"absolute",top:"10%",left:"50%",transform:"translateX(-50%)",width:780,height:780,borderRadius:"50%",background:"radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 68%)",pointerEvents:"none" }} />
+        <Container maxWidth={false} sx={{ position:"relative",zIndex:1,px:{ xs:3,md:4,lg:6 } }}>
           <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once:true }}>
-            <Typography className="fm" sx={{ fontSize:10,color:"#4ade80",letterSpacing:3,textTransform:"uppercase",mb:1.5 }}>The Team</Typography>
-            <Typography className="fd" sx={{ fontSize:{ xs:"2.2rem",md:"3.5rem" },fontWeight:700,mb:{ xs:6,md:8 },lineHeight:1.1 }}>
-              Built by students,{" "}
-              <Box component="span" sx={{ fontStyle:"italic",fontWeight:400,color:"rgba(232,245,233,0.38)" }}>for learning.</Box>
-            </Typography>
+            <Box sx={{ textAlign:"center",maxWidth:980,mx:"auto",mb:{ xs:6,md:8 } }}>
+              <Box sx={{ display:"inline-flex",alignItems:"center",gap:1,px:2.2,py:1,borderRadius:"999px",background:"rgba(30,64,175,0.28)",border:"1px solid rgba(96,165,250,0.18)",mb:3 }}>
+                <Typography sx={{ fontSize:14 }}>👤</Typography>
+                <Typography className="fs" sx={{ fontSize:13,fontWeight:600,color:"#60a5fa" }}>Meet Our Team</Typography>
+              </Box>
+              <Typography className="fs" sx={{ fontSize:{ xs:"2.5rem",md:"4.2rem",lg:"5rem" },fontWeight:700,color:"#f8fafc",lineHeight:1.04,mb:2.5,letterSpacing:"-0.04em" }}>
+                Our Exceptional Team
+              </Typography>
+              <Typography className="fs" sx={{ fontSize:{ xs:17,md:20 },color:"rgba(226,232,240,0.86)",lineHeight:1.7,maxWidth:1180,mx:"auto" }}>
+                Meet our outstanding team, a synergy of talent, creativity, and dedication, crafting success together with passion and innovation.
+              </Typography>
+            </Box>
           </motion.div>
+
           <Grid container spacing={2.5}>
             {TEAM.map((m, i) => (
-              <Grid item xs={6} md={3} key={i}>
-                <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once:true }} custom={i*0.15}>
-                  <Box className="team-card" sx={{ p:3,borderRadius:"16px",border:"1px solid rgba(74,222,128,0.09)",background:"rgba(255,255,255,0.013)",backdropFilter:"blur(12px)" }}>
-                    <Box sx={{ width:52,height:52,borderRadius:"14px",background:`linear-gradient(135deg,#1a5c3a,${m.color}25)`,border:`1px solid ${m.color}40`,display:"flex",alignItems:"center",justifyContent:"center",mb:2,boxShadow:`0 6px 20px rgba(74,222,128,0.14)` }}>
-                      <Typography className="fd" sx={{ fontSize:22,fontWeight:700,color:m.color }}>{m.name[0]}</Typography>
+              <Grid item xs={12} sm={6} lg={3} key={m.name}>
+                <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once:true }} custom={i*0.12}>
+                  <Box
+                    className="team-card"
+                    sx={{
+                      p:{ xs:3,md:3.5 },
+                      minHeight:420,
+                      borderRadius:"26px",
+                      border:"1px solid rgba(148,163,184,0.14)",
+                      background:"linear-gradient(180deg, rgba(15,23,42,0.96), rgba(17,24,39,0.94))",
+                      boxShadow:"0 10px 30px rgba(2,6,23,0.4)",
+                      display:"flex",
+                      flexDirection:"column",
+                      alignItems:"center",
+                      textAlign:"center",
+                    }}
+                  >
+                    <Box
+                      className="team-profile-ring"
+                      sx={{
+                        width:{ xs:152,md:168 },
+                        height:{ xs:152,md:168 },
+                        borderRadius:"50%",
+                        p:"6px",
+                        mb:3,
+                        background:`linear-gradient(135deg, ${m.color}, #f59e0b 65%)`,
+                        transition:"all 0.32s cubic-bezier(.22,1,.36,1)",
+                      }}
+                    >
+                      <Box
+                        component="img"
+                        src={m.imageUrl}
+                        alt={m.name}
+                        sx={{
+                          width:"100%",
+                          height:"100%",
+                          borderRadius:"50%",
+                          objectFit:"cover",
+                          display:"block",
+                          background:"#0f172a",
+                          border:"4px solid rgba(15,23,42,0.95)",
+                        }}
+                      />
                     </Box>
-                    <Typography className="fs" sx={{ fontSize:15,fontWeight:500,color:"#e8f5e9",mb:0.4 }}>{m.name}</Typography>
-                    <Typography className="fm" sx={{ fontSize:10.5,color:m.color,opacity:0.78,letterSpacing:0.4 }}>{m.role}</Typography>
+
+                    <Typography className="team-name fs" sx={{ fontSize:{ xs:18,md:20 },fontWeight:700,color:"#f8fafc",mb:1,transition:"color 0.25s ease" }}>
+                      {m.name}
+                    </Typography>
+
+                    <Box sx={{ px:2,py:0.8,borderRadius:"999px",background:"rgba(51,65,85,0.82)",mb:3 }}>
+                      <Typography className="fs" sx={{ fontSize:13,fontWeight:600,color:"rgba(226,232,240,0.95)" }}>
+                        {m.role}
+                      </Typography>
+                    </Box>
+
+                    <Box sx={{ display:"flex",gap:1.3,mt:"auto" }}>
+                      <Box
+                        component="a"
+                        href={m.linkedin}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="team-social"
+                        aria-label={`${m.name} LinkedIn`}
+                        sx={{
+                          width:42,
+                          height:42,
+                          borderRadius:"50%",
+                          display:"flex",
+                          alignItems:"center",
+                          justifyContent:"center",
+                          color:"rgba(226,232,240,0.72)",
+                          background:"rgba(51,65,85,0.7)",
+                          border:"1px solid rgba(148,163,184,0.12)",
+                          "&:hover":{ color:"#fff", background:"#2563eb" },
+                        }}
+                      >
+                        <LinkedInIcon />
+                      </Box>
+                      <Box
+                        component="a"
+                        href={m.github}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="team-social"
+                        aria-label={`${m.name} GitHub`}
+                        sx={{
+                          width:42,
+                          height:42,
+                          borderRadius:"50%",
+                          display:"flex",
+                          alignItems:"center",
+                          justifyContent:"center",
+                          color:"rgba(226,232,240,0.72)",
+                          background:"rgba(51,65,85,0.7)",
+                          border:"1px solid rgba(148,163,184,0.12)",
+                          "&:hover":{ color:"#fff", background:"#111827" },
+                        }}
+                      >
+                        <GitHubIcon />
+                      </Box>
+                    </Box>
                   </Box>
                 </motion.div>
               </Grid>
