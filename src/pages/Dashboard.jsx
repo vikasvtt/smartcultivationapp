@@ -39,6 +39,7 @@ const CHART_META = [
 // ── Nav tabs ─────────────────────────────────────────────────────────
 const NAV_TABS = [
   { key:"dashboard",  label:"Dashboard",        icon:"📊" },
+  { key:"history",    label:"History",          icon:"🕘" },
   { key:"config",     label:"Device Config",    icon:"⚙️" },
   { key:"firmware",   label:"Firmware Update",  icon:"📦", adminOnly: true },
 ];
@@ -256,6 +257,15 @@ const menuPaperSx = {
     "&.Mui-selected":{ background:"rgba(74,222,128,0.12)", color:"#4ade80" },
   },
 };
+
+function handleNavAction(tabKey, navigate, setActiveTab) {
+  if (tabKey === "history") {
+    navigate("/history");
+    return;
+  }
+
+  setActiveTab(tabKey);
+}
 
 // ── Relay Card (for Config screen) ───────────────────────────────────
 function RelayCard({ meta, rule, onChange, onSave, saving, lastSaved }) {
@@ -730,7 +740,7 @@ export default function Dashboard() {
           {/* Nav tabs — desktop */}
           <Box sx={{ display:{ xs:"none",sm:"flex" },gap:1 }}>
             {NAV_TABS.filter(tab => !tab.adminOnly || user.role === "admin").map((tab) => (
-              <Box key={tab.key} onClick={() => setActiveTab(tab.key)}
+              <Box key={tab.key} onClick={() => handleNavAction(tab.key, navigate, setActiveTab)}
                 sx={{ px:2,py:0.7,borderRadius:"8px",cursor:"pointer",display:"flex",alignItems:"center",gap:0.7,
                   border:`1px solid ${activeTab===tab.key?"rgba(74,222,128,0.4)":"rgba(74,222,128,0.1)"}`,
                   background:activeTab===tab.key?"rgba(74,222,128,0.1)":"transparent",
@@ -765,7 +775,7 @@ export default function Dashboard() {
             {/* Mobile nav items in menu */}
             <Box sx={{ display:{ xs:"block",sm:"none" } }}>
               {NAV_TABS.filter(tab => !tab.adminOnly || user.role === "admin").map((tab) => (
-                <MenuItem key={tab.key} onClick={() => { setActiveTab(tab.key); setAnchorEl(null); }}
+                <MenuItem key={tab.key} onClick={() => { handleNavAction(tab.key, navigate, setActiveTab); setAnchorEl(null); }}
                   sx={{ color:activeTab===tab.key?"#4ade80":"rgba(232,245,233,0.7)",fontSize:13,"&:hover":{ background:"rgba(74,222,128,0.08)" } }}>
                   {tab.icon} &nbsp;{tab.label}
                 </MenuItem>
@@ -855,6 +865,10 @@ export default function Dashboard() {
                         <Button onClick={() => fetchDevice(selectedDevice)}
                           sx={{ fontSize:12,color:"#4ade80",border:"1px solid rgba(74,222,128,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap","&:hover":{ background:"rgba(74,222,128,0.06)" } }}>
                           ↻ Refresh
+                        </Button>
+                        <Button onClick={() => navigate("/history")}
+                          sx={{ fontSize:12,color:"#38bdf8",border:"1px solid rgba(56,189,248,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap","&:hover":{ background:"rgba(56,189,248,0.06)" } }}>
+                          🕘 History
                         </Button>
                         <Button onClick={() => setActiveTab("config")}
                           sx={{ fontSize:12,color:"#fbbf24",border:"1px solid rgba(251,191,36,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap","&:hover":{ background:"rgba(251,191,36,0.06)" } }}>

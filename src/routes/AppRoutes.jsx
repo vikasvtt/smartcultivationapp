@@ -5,6 +5,7 @@ import Login from "../pages/Login";
 import Signup from "../pages/Signup";
 import Dashboard from "../pages/Dashboard";
 import DeviceConfig from "../pages/Deviceconfig";
+import History from "../pages/History";
 
 
 // Redirects to /login if user is not logged in
@@ -22,6 +23,9 @@ export default function AppRoutes() {
       <Route path="/signup"    element={<Signup />} />
       <Route path="/dashboard" element={
         <ProtectedRoute><Dashboard /></ProtectedRoute>
+      } />
+      <Route path="/history" element={
+        <ProtectedRoute><History /></ProtectedRoute>
       } />
       <Route path="/config" element={
         <ProtectedRoute><DeviceConfig /></ProtectedRoute>

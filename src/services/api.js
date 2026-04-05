@@ -32,6 +32,23 @@ export async function getSensorHistory(deviceId, limit = 30) {
   return res.json();
 }
 
+export async function getSensorHistoryRange(deviceId, { days = 3, limit } = {}) {
+  const params = new URLSearchParams();
+
+  if (days) params.set("days", String(days));
+  if (limit) params.set("limit", String(limit));
+
+  const query = params.toString();
+  const res = await fetch(
+    `${BASE}/sensors/history/${deviceId}${query ? `?${query}` : ""}`,
+    { headers: getAuthHeaders() }
+  );
+
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  if (!res.ok) throw new Error("Failed to fetch history");
+  return res.json();
+}
+
 export async function getAllLatest() {
   const res = await fetch(`${BASE}/sensors/all-latest`, {
     headers: getAuthHeaders(),

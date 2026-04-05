@@ -185,10 +185,27 @@ app.get("/api/sensors/latest/:deviceId", auth, async (req, res) => {
 });
 
 app.get("/api/sensors/history/:deviceId", auth, async (req, res) => {
-  const data = await Telemetry.find({ deviceId: req.params.deviceId })
-    .sort({ time: -1 })
-    .limit(30);
-  res.json(data);
+  try {
+    const limit = Number.parseInt(req.query.limit, 10);
+    const days = Number.parseInt(req.query.days, 10);
+    const query = { deviceId: req.params.deviceId };
+
+    if (Number.isFinite(days) && days > 0) {
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      query.time = { $gte: since };
+    }
+
+    let telemetryQuery = Telemetry.find(query).sort({ time: -1 });
+
+    if (Number.isFinite(limit) && limit > 0) {
+      telemetryQuery = telemetryQuery.limit(limit);
+    }
+
+    const data = await telemetryQuery;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ✅ THIS IS THE IMPORTANT ONE (RESTORED EXACT WORKING LOGIC)
