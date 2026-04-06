@@ -207,7 +207,11 @@ app.get("/api/sensors/history/:deviceId", auth, async (req, res) => {
     const query = { deviceId: req.params.deviceId };
 
     if (Number.isFinite(days) && days > 0) {
-      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      // Use whole calendar days instead of a strict rolling 72-hour window,
+      // so "last 3 days" still includes records from the start of the third day.
+      const since = new Date();
+      since.setHours(0, 0, 0, 0);
+      since.setDate(since.getDate() - days);
       query.time = { $gte: since };
     }
 
