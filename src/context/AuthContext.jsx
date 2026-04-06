@@ -1,14 +1,13 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { apiLogin, apiSignup } from "../services/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]   = useState(null);
+  const [user, setUser] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem("user");
@@ -22,12 +21,9 @@ export function AuthProvider({ children }) {
     try {
       setError("");
       const data = await apiLogin(email, password);
-      
+
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
-
-     
-
       setUser(data.user);
       return true;
     } catch (err) {
@@ -36,14 +32,10 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const signup = async (name, email, password, role) => {
+  const signup = async (name, email, password) => {
     try {
       setError("");
-      const data = await apiSignup(name, email, password, role);
-      // ✅ Save token from signup too
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      setUser(data.user);
+      await apiSignup(name, email, password);
       return true;
     } catch (err) {
       setError(err.message || "Signup failed");

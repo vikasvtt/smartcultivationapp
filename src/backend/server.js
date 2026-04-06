@@ -105,6 +105,29 @@ const imageSchema = new mongoose.Schema(
 
 const ImageRecord = mongoose.model("ImageRecord", imageSchema);
 
+function sanitizeUser(userDoc) {
+  if (!userDoc) return null;
+
+  return {
+    _id: userDoc._id,
+    name: userDoc.name,
+    email: userDoc.email,
+    role: userDoc.role || "pending",
+    deviceId: userDoc.deviceId || "",
+  };
+}
+
+async function requireAdmin(req, res) {
+  const currentUser = await User.findById(req.user.id);
+
+  if (!currentUser || currentUser.role !== "admin") {
+    res.status(403).json({ error: "Admin access required" });
+    return null;
+  }
+
+  return currentUser;
+}
+
 // ════════════════════════════════════════════════════════════════════
 // SSE
 // ════════════════════════════════════════════════════════════════════
@@ -172,13 +195,99 @@ app.post("/api/auth/login", async (req, res) => {
 
   if (!user) return res.status(401).json({ error: "User not found" });
 
+  if (!user.role || user.role === "pending") {
+    return res.status(403).json({
+      error: "Your account is pending admin approval. Please wait for device and role assignment.",
+    });
+  }
+
   const match = await bcrypt.compare(req.body.password, user.password);
 
   if (!match) return res.status(401).json({ error: "Wrong password" });
 
   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
 
-  res.json({ user, token });
+  res.json({ user: sanitizeUser(user), token });
+});
+
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email, and password are required" });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ error: "An account with this email already exists" });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: "pending",
+      deviceId: "",
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Account created. An admin will assign your role and chamber before login.",
+      user: sanitizeUser(user),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/users", auth, async (req, res) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const users = await User.find({}).sort({ email: 1 });
+    res.json(users.map(sanitizeUser));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/admin/users/:id", auth, async (req, res) => {
+  try {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    const { role, deviceId } = req.body;
+    const updates = {};
+
+    if (role) {
+      if (!["pending", "user", "admin"].includes(role)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+      updates.role = role;
+    }
+
+    if (deviceId !== undefined) {
+      updates.deviceId = deviceId;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ success: true, user: sanitizeUser(updatedUser) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════

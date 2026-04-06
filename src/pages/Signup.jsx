@@ -1,4 +1,4 @@
-import { Box, Button, TextField, Typography, Alert, ToggleButton, ToggleButtonGroup, CircularProgress } from "@mui/material";
+import { Box, Button, TextField, Typography, Alert, CircularProgress } from "@mui/material";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -34,30 +34,56 @@ export default function Signup() {
   const navigate = useNavigate();
   const { signup, error, setError } = useAuth();
 
-  const [name, setName]         = useState("");
-  const [email, setEmail]       = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm]   = useState("");
-  const [role, setRole]         = useState("user");
-  const [loading, setLoading]   = useState(false);
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState("");
 
   const handleSignup = async () => {
     setError("");
-    if (!name || !email || !password || !confirm) { setError("Please fill in all fields."); return; }
-    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
-    if (password !== confirm) { setError("Passwords do not match."); return; }
+    setSuccess("");
+
+    if (!name || !email || !password || !confirm) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
-    const ok = await signup(name, email, password, role); // ✅ no fake delay
+    const ok = await signup(name, email, password);
     setLoading(false);
-    if (ok) navigate("/dashboard");
+
+    if (ok) {
+      setSuccess("Account created. An admin will assign your account type and chamber before login.");
+      setTimeout(() => navigate("/login"), 1200);
+    }
   };
 
   return (
-    <Box sx={{
-      minHeight: "100vh", background: "#040d08",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      position: "relative", overflow: "hidden", py: 6, px: 2,
-    }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        background: "#040d08",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+        py: 6,
+        px: 2,
+      }}
+    >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Cormorant+Garamond:ital,wght@0,300;0,600;1,300&family=JetBrains+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; font-family: 'DM Sans', sans-serif; }
@@ -75,7 +101,7 @@ export default function Signup() {
         <Box sx={{ p:{xs:3,md:5} }}>
           <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
             <Box sx={{ display:"flex",alignItems:"center",gap:1,mb:{xs:4,md:5} }}>
-              <Box sx={{ width:32,height:32,borderRadius:"8px",background:"linear-gradient(135deg,#2d6a4f,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>🌿</Box>
+              <Box sx={{ width:32,height:32,borderRadius:"8px",background:"linear-gradient(135deg,#2d6a4f,#4ade80)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16 }}>??</Box>
               <Typography sx={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:"#e8f5e9" }}>SmartCultivation</Typography>
             </Box>
           </motion.div>
@@ -85,45 +111,28 @@ export default function Signup() {
             <Typography sx={{ fontSize:13.5,color:"rgba(232,245,233,0.4)",mb:3 }}>Join to monitor your cultivation chamber</Typography>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={2}>
-            <Typography sx={{ fontSize:11,letterSpacing:2,color:"rgba(232,245,233,0.4)",textTransform:"uppercase",fontFamily:"'JetBrains Mono',monospace",mb:1.5 }}>Account Type</Typography>
-            <ToggleButtonGroup value={role} exclusive onChange={(_, v) => { if (v) setRole(v); }} fullWidth sx={{ mb:3,gap:1 }}>
-              {[
-                { val:"user",  label:"👤 User",  desc:"View your chamber" },
-                { val:"admin", label:"🛡 Admin", desc:"View all chambers" },
-              ].map((r) => (
-                <ToggleButton key={r.val} value={r.val} sx={{
-                  flex:1, py:1.5, px:1.5, borderRadius:"8px !important",
-                  border:"1px solid rgba(74,222,128,0.15) !important",
-                  background:role===r.val?"rgba(74,222,128,0.1)":"rgba(74,222,128,0.02)",
-                  color:role===r.val?"#4ade80":"rgba(232,245,233,0.4)",
-                  borderColor:role===r.val?"rgba(74,222,128,0.5) !important":undefined,
-                  flexDirection:"column",gap:0.3,transition:"all 0.25s",
-                  "&:hover":{ background:"rgba(74,222,128,0.07)" },
-                }}>
-                  <Typography sx={{ fontSize:{xs:12,md:14},fontWeight:500,color:"inherit",textTransform:"none" }}>{r.label}</Typography>
-                  <Typography sx={{ fontSize:{xs:10,md:11},opacity:0.65,textTransform:"none",color:"inherit" }}>{r.desc}</Typography>
-                </ToggleButton>
-              ))}
-            </ToggleButtonGroup>
-          </motion.div>
-
           {error && (
             <motion.div initial={{ opacity:0,y:-8 }} animate={{ opacity:1,y:0 }}>
               <Alert severity="error" sx={{ mb:2.5,borderRadius:"8px",background:"rgba(248,113,113,0.08)",color:"#fca5a5",border:"1px solid rgba(248,113,113,0.2)","& .MuiAlert-icon":{ color:"#f87171" } }}>{error}</Alert>
             </motion.div>
           )}
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={3}>
+          {success && (
+            <motion.div initial={{ opacity:0,y:-8 }} animate={{ opacity:1,y:0 }}>
+              <Alert severity="success" sx={{ mb:2.5,borderRadius:"8px",background:"rgba(74,222,128,0.08)",color:"#bbf7d0",border:"1px solid rgba(74,222,128,0.2)","& .MuiAlert-icon":{ color:"#4ade80" } }}>{success}</Alert>
+            </motion.div>
+          )}
+
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={2}>
             <TextField fullWidth label="Full Name" value={name} onChange={(e) => setName(e.target.value)} sx={{ ...inputSx, mb:2 }} />
           </motion.div>
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={4}>
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={3}>
             <TextField fullWidth label="Email Address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} sx={{ ...inputSx, mb:2 }} />
           </motion.div>
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={5}>
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={4}>
             <TextField fullWidth label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} sx={{ ...inputSx, mb:2 }} />
           </motion.div>
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={6}>
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={5}>
             <TextField fullWidth label="Confirm Password" type="password" value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleSignup(); }}
@@ -144,7 +153,7 @@ export default function Signup() {
             </Box>
           )}
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={7}>
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={6}>
             <motion.div whileHover={{ scale:1.02 }} whileTap={{ scale:0.98 }}>
               <Button fullWidth onClick={handleSignup} disabled={loading}
                 sx={{ py:1.6,fontSize:14,borderRadius:"8px",fontWeight:500,background:"linear-gradient(135deg,#2d6a4f,#4ade80)",color:"#040d08",boxShadow:"0 8px 24px rgba(74,222,128,0.25)",mb:3,transition:"all 0.3s","&:hover":{boxShadow:"0 12px 32px rgba(74,222,128,0.45)"},"&:disabled":{opacity:0.5} }}>
@@ -153,14 +162,14 @@ export default function Signup() {
             </motion.div>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={8}>
+          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={7}>
             <Box sx={{ pt:3,borderTop:"1px solid rgba(74,222,128,0.08)",textAlign:"center" }}>
               <Typography sx={{ fontSize:13.5,color:"rgba(232,245,233,0.35)" }}>
                 Already have an account?{" "}
                 <Box component="span" onClick={() => navigate("/login")} sx={{ color:"#4ade80",cursor:"pointer",fontWeight:500,"&:hover":{textDecoration:"underline"} }}>Sign In</Box>
               </Typography>
               <Box component="span" onClick={() => navigate("/")} sx={{ display:"inline-flex",alignItems:"center",gap:0.5,mt:2,fontSize:12,color:"rgba(232,245,233,0.25)",cursor:"pointer","&:hover":{color:"rgba(232,245,233,0.5)"} }}>
-                ← Back to Home
+                ? Back to Home
               </Box>
             </Box>
           </motion.div>

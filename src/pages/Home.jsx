@@ -46,7 +46,7 @@ const TEAM = [
   },
   {
     name:"Unnati",
-    role:"Backend Developer",
+    role:"Database & API",
     color:"#34d399",
     imageUrl:"/team/unnati.jpg",
     linkedin:"#",
@@ -54,7 +54,7 @@ const TEAM = [
   },
   {
     name:"Darshan",
-    role:"IoT & Hardware",
+    role:"Backend Development",
     color:"#6ee7b7",
     imageUrl:"/team/darshan.jpg",
     linkedin:"#",
@@ -62,7 +62,7 @@ const TEAM = [
   },
   {
     name:"Vikas",
-    role:"Database & API",
+    role:"IOT & Hardware",
     color:"#a7f3d0",
     imageUrl:"/team/vikas.jpg",
     linkedin:"#",

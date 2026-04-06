@@ -157,20 +157,55 @@ export async function apiLogin(email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Server returned an invalid response");
+  }
   if (!res.ok) throw new Error(data.error || "Login failed");
   return data;
 }
 
-export async function apiSignup(name, email, password, role) {
+export async function apiSignup(name, email, password) {
   const res = await fetch(`${BASE}/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email, password, role }),
+    body: JSON.stringify({ name, email, password }),
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Server returned an invalid response");
+  }
   if (!res.ok) throw new Error(data.error || "Signup failed");
-  return data; // returns { user, token }
+  return data;
+}
+
+export async function getAdminUsers() {
+  const res = await fetch(`${BASE}/admin/users`, {
+    headers: getAuthHeaders(),
+  });
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  if (res.status === 403) throw new Error("Admin access required");
+  if (!res.ok) throw new Error("Failed to fetch users");
+  return res.json();
+}
+
+export async function updateAdminUser(userId, updates) {
+  const res = await fetch(`${BASE}/admin/users/${userId}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(updates),
+  });
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  if (res.status === 403) throw new Error("Admin access required");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to update user");
+  return data.user;
 }
 
 // ── Firmware API ─────────────────────────────────────────────────────

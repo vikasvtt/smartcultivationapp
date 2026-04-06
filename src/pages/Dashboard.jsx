@@ -16,6 +16,7 @@ import {
   getLatestReading, getSensorHistory,
   getAllLatest, subscribeToLive,
   getConfig, saveConfig,
+  getAdminUsers, updateAdminUser,
 } from "../services/api";
 import {
   AreaChart, Area, XAxis, YAxis,
@@ -40,6 +41,7 @@ const CHART_META = [
 const NAV_TABS = [
   { key:"dashboard",  label:"Dashboard",        icon:"📊" },
   { key:"history",    label:"History",          icon:"🕘" },
+  { key:"users",      label:"Users",            icon:"👥", adminOnly: true },
   { key:"config",     label:"Device Config",    icon:"⚙️" },
   { key:"firmware",   label:"Firmware Update",  icon:"📦", adminOnly: true },
 ];
@@ -265,6 +267,109 @@ function handleNavAction(tabKey, navigate, setActiveTab) {
   }
 
   setActiveTab(tabKey);
+}
+
+function AdminUsersPanel({
+  users,
+  devices,
+  loading,
+  savingId,
+  drafts,
+  onDraftChange,
+  onRefresh,
+  onSave,
+}) {
+  return (
+    <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
+      <Box sx={{ borderRadius:"14px",border:"1px solid rgba(74,222,128,0.1)",background:"rgba(8,15,10,0.7)",overflow:"hidden" }}>
+        <Box sx={{ px:3,py:2.5,borderBottom:"1px solid rgba(74,222,128,0.08)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:2,flexWrap:"wrap" }}>
+          <Box>
+            <Typography sx={{ fontSize:14,fontWeight:500,color:"#e8f5e9" }}>User Management</Typography>
+            <Typography sx={{ fontSize:11,color:"rgba(232,245,233,0.35)",fontFamily:"'JetBrains Mono',monospace" }}>
+              New signups stay pending until admin assigns role and chamber
+            </Typography>
+          </Box>
+          <Button onClick={onRefresh} sx={{ fontSize:12,color:"#4ade80",border:"1px solid rgba(74,222,128,0.2)",borderRadius:"8px",px:2,py:0.8 }}>
+            ↻ Refresh Users
+          </Button>
+        </Box>
+
+        {loading ? (
+          <Box sx={{ display:"flex",alignItems:"center",justifyContent:"center",py:8,flexDirection:"column",gap:2 }}>
+            <CircularProgress sx={{ color:"#4ade80" }} />
+            <Typography sx={{ fontSize:12,color:"rgba(232,245,233,0.4)",fontFamily:"'JetBrains Mono',monospace" }}>Loading users…</Typography>
+          </Box>
+        ) : users.length === 0 ? (
+          <Box sx={{ p:4,textAlign:"center" }}>
+            <Typography sx={{ color:"rgba(232,245,233,0.45)" }}>No users found.</Typography>
+          </Box>
+        ) : (
+          <Box sx={{ overflowX:"auto" }}>
+            <Box component="table" sx={{ width:"100%",borderCollapse:"collapse" }}>
+              <Box component="thead">
+                <Box component="tr" sx={{ "& th":{ px:3,py:1.5,textAlign:"left",fontSize:10,letterSpacing:1.5,color:"rgba(232,245,233,0.3)",textTransform:"uppercase",fontFamily:"'JetBrains Mono',monospace",fontWeight:400,borderBottom:"1px solid rgba(74,222,128,0.07)",whiteSpace:"nowrap" } }}>
+                  <th>Name</th><th>Email</th><th>Role</th><th>Device</th><th>Action</th>
+                </Box>
+              </Box>
+              <Box component="tbody">
+                {users.map((u) => {
+                  const draft = drafts[u._id] || { role:u.role || "pending", deviceId:u.deviceId || "" };
+                  return (
+                    <Box component="tr" key={u._id} sx={{ "& td":{ px:3,py:2,borderBottom:"1px solid rgba(74,222,128,0.05)",verticalAlign:"middle" } }}>
+                      <Box component="td">
+                        <Typography sx={{ color:"#e8f5e9",fontSize:13,fontWeight:500 }}>{u.name}</Typography>
+                      </Box>
+                      <Box component="td">
+                        <Typography sx={{ color:"rgba(232,245,233,0.6)",fontSize:12,fontFamily:"'JetBrains Mono',monospace" }}>{u.email}</Typography>
+                      </Box>
+                      <Box component="td" sx={{ minWidth:150 }}>
+                        <FormControl fullWidth size="small" sx={selectSx("#4ade80")}>
+                          <Select
+                            value={draft.role}
+                            onChange={(e) => onDraftChange(u._id, "role", e.target.value)}
+                            MenuProps={{ PaperProps:{ sx:menuPaperSx } }}
+                          >
+                            <MenuItem value="pending">pending</MenuItem>
+                            <MenuItem value="user">user</MenuItem>
+                            <MenuItem value="admin">admin</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Box>
+                      <Box component="td" sx={{ minWidth:190 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          value={draft.deviceId}
+                          onChange={(e) => onDraftChange(u._id, "deviceId", e.target.value)}
+                          placeholder="chamber-001"
+                          list={`device-options-${u._id}`}
+                          sx={selectSx("#38bdf8")}
+                        />
+                        <datalist id={`device-options-${u._id}`}>
+                          {devices.map((device) => (
+                            <option key={device} value={device} />
+                          ))}
+                        </datalist>
+                      </Box>
+                      <Box component="td">
+                        <Button
+                          onClick={() => onSave(u._id)}
+                          disabled={savingId === u._id}
+                          sx={{ fontSize:12,color:"#fbbf24",border:"1px solid rgba(251,191,36,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap" }}
+                        >
+                          {savingId === u._id ? "Saving..." : "Save"}
+                        </Button>
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Box>
+        )}
+      </Box>
+    </motion.div>
+  );
 }
 
 // ── Relay Card (for Config screen) ───────────────────────────────────
@@ -631,6 +736,10 @@ export default function Dashboard() {
   const [flashCards, setFlashCards]       = useState(false);
   const [liveCount, setLiveCount]         = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [adminUsers, setAdminUsers]       = useState([]);
+  const [userDrafts, setUserDrafts]       = useState({});
+  const [usersLoading, setUsersLoading]   = useState(false);
+  const [savingUserId, setSavingUserId]   = useState(null);
   const unsubRef = useRef(null);
 
   useEffect(() => { if (!user) navigate("/login"); }, [user]);
@@ -668,6 +777,23 @@ export default function Dashboard() {
     }
   }, [selectedDevice]);
 
+  const fetchAdminUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      const data = await getAdminUsers();
+      setAdminUsers(data);
+      setUserDrafts(
+        Object.fromEntries(
+          data.map((u) => [u._id, { role:u.role || "pending", deviceId:u.deviceId || "" }])
+        )
+      );
+    } catch (err) {
+      setFetchError(err.message || "Cannot load users.");
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     const init = async () => {
@@ -680,6 +806,12 @@ export default function Dashboard() {
   }, [user]);
 
   useEffect(() => { if (selectedDevice) fetchDevice(selectedDevice); }, [selectedDevice]);
+
+  useEffect(() => {
+    if (user?.role === "admin" && activeTab === "users") {
+      fetchAdminUsers();
+    }
+  }, [activeTab, fetchAdminUsers, user]);
 
   useEffect(() => {
     if (!selectedDevice) return;
@@ -701,6 +833,37 @@ export default function Dashboard() {
     });
     return () => { if (unsubRef.current) unsubRef.current(); };
   }, [selectedDevice, user]);
+
+  const updateUserDraft = useCallback((userId, field, value) => {
+    setUserDrafts((prev) => ({
+      ...prev,
+      [userId]: {
+        ...(prev[userId] || {}),
+        [field]: value,
+      },
+    }));
+  }, []);
+
+  const saveAdminUser = useCallback(async (userId) => {
+    try {
+      setSavingUserId(userId);
+      const draft = userDrafts[userId];
+      const updated = await updateAdminUser(userId, {
+        role: draft?.role || "pending",
+        deviceId: draft?.deviceId || "",
+      });
+
+      setAdminUsers((prev) => prev.map((u) => (u._id === userId ? updated : u)));
+      setUserDrafts((prev) => ({
+        ...prev,
+        [userId]: { role: updated.role || "pending", deviceId: updated.deviceId || "" },
+      }));
+    } catch (err) {
+      setFetchError(err.message || "Failed to save user.");
+    } finally {
+      setSavingUserId(null);
+    }
+  }, [userDrafts]);
 
   if (!user) return null;
   const chartMeta = CHART_META.find((m) => m.key === activeChart);
@@ -845,6 +1008,19 @@ export default function Dashboard() {
               )}
 
               {/* ══════════ DASHBOARD TAB ══════════ */}
+                            {activeTab === "users" && user.role === "admin" && (
+                <AdminUsersPanel
+                  users={adminUsers}
+                  devices={allLatest.map((d) => d.deviceId).filter(Boolean)}
+                  loading={usersLoading}
+                  savingId={savingUserId}
+                  drafts={userDrafts}
+                  onDraftChange={updateUserDraft}
+                  onRefresh={fetchAdminUsers}
+                  onSave={saveAdminUser}
+                />
+              )}
+
               {activeTab === "dashboard" && (
                 <AnimatePresence mode="wait">
                   <motion.div key={selectedDevice}
@@ -1059,3 +1235,4 @@ export default function Dashboard() {
     </Box>
   );
 }
+
