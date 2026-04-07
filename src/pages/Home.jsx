@@ -35,6 +35,29 @@ const STACK = [
   { icon:"🔐",  name:"JWT Auth",      tag:"Security" },
 ];
 
+const DOWNLOADS = [
+  {
+    key:"windows",
+    icon:"🪟",
+    name:"Windows App",
+    subtitle:"Desktop installer for Windows",
+    href: process.env.REACT_APP_WINDOWS_DOWNLOAD_URL || "/downloads/smartcultivation-windows.zip",
+    hint: process.env.REACT_APP_WINDOWS_DOWNLOAD_URL || "public/downloads/smartcultivation-windows.zip",
+    cta:"Download for Windows",
+    color:"#7dd3fc",
+  },
+  {
+    key:"android",
+    icon:"🤖",
+    name:"Android App",
+    subtitle:"APK package for Android devices",
+    href: process.env.REACT_APP_ANDROID_DOWNLOAD_URL || "/downloads/smartcultivation-android.apk",
+    hint: process.env.REACT_APP_ANDROID_DOWNLOAD_URL || "public/downloads/smartcultivation-android.apk",
+    cta:"Download for Android",
+    color:"#4ade80",
+  },
+];
+
 const TEAM = [
   {
     name:"Saniya",
@@ -312,7 +335,7 @@ export default function Home() {
 
         {/* nav links */}
         <Box sx={{ display:{ xs:"none",md:"flex" }, gap:0.5 }}>
-          {[["Overview","#overview"],["How It Works","#how"],["Tech Stack","#tech"],["Team","#team"]].map(([label, href]) => (
+          {[["Overview","#overview"],["How It Works","#how"],["Tech Stack","#tech"],["Downloads","#downloads"],["Team","#team"]].map(([label, href]) => (
             <Button key={label} component="a" href={href} className="nav-link"
               sx={{ position:"relative",color:"rgba(232,245,233,0.55)",fontSize:13,fontFamily:"'Outfit',sans-serif",letterSpacing:0.3,textTransform:"none",px:2,
                 "&:hover":{ color:"#4ade80",background:"transparent" } }}>
@@ -693,6 +716,81 @@ export default function Home() {
               </motion.div>
             ))}
           </Box>
+        </Container>
+      </Box>
+
+      <Box id="downloads" sx={{ py:{ xs:10,md:14 },borderTop:"1px solid rgba(74,222,128,0.06)",position:"relative",overflow:"hidden" }}>
+        <Box sx={{ position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:680,height:680,borderRadius:"50%",background:"radial-gradient(circle,rgba(45,106,79,0.09) 0%,transparent 70%)",pointerEvents:"none" }} />
+        <Container maxWidth="xl" sx={{ position:"relative",zIndex:1,px:{ xs:3,md:8 } }}>
+          <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once:true }}>
+            <Typography className="fm" sx={{ fontSize:10,color:"#4ade80",letterSpacing:3,textTransform:"uppercase",mb:1.5,textAlign:"center" }}>Downloads</Typography>
+            <Typography className="fd" sx={{ fontSize:{ xs:"2.2rem",md:"3.5rem" },fontWeight:700,lineHeight:1.1,textAlign:"center",mb:2 }}>
+              Get the app on your devices.
+            </Typography>
+            <Typography className="fs" sx={{ maxWidth:880,mx:"auto",textAlign:"center",fontSize:{ xs:14,md:17 },color:"rgba(232,245,233,0.42)",lineHeight:1.9,mb:{ xs:5,md:7 } }}>
+              Download the SmartCultivation application for Windows or Android before login. You can link these buttons to hosted installer files or place the builds inside the public downloads folder.
+            </Typography>
+          </motion.div>
+
+          <Grid container spacing={2.5}>
+            {DOWNLOADS.map((item, i) => (
+              <Grid item xs={12} md={6} key={item.key}>
+                <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once:true }} custom={i * 0.15}>
+                  <Box sx={{ p:{ xs:3,md:3.5 },borderRadius:"18px",border:"1px solid rgba(74,222,128,0.1)",background:"rgba(255,255,255,0.015)",backdropFilter:"blur(12px)",height:"100%",display:"flex",flexDirection:"column" }}>
+                    <Box sx={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",mb:2.5,gap:2 }}>
+                      <Box>
+                        <Typography className="fm" sx={{ fontSize:10,color:"rgba(232,245,233,0.32)",letterSpacing:1.6,textTransform:"uppercase",mb:0.8 }}>
+                          Application Download
+                        </Typography>
+                        <Typography className="fs" sx={{ fontSize:{ xs:22,md:26 },fontWeight:600,color:"#e8f5e9",mb:0.7 }}>
+                          {item.name}
+                        </Typography>
+                        <Typography className="fs" sx={{ fontSize:14,color:"rgba(232,245,233,0.45)" }}>
+                          {item.subtitle}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ width:54,height:54,borderRadius:"16px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,background:`${item.color}18`,border:`1px solid ${item.color}33`,flexShrink:0 }}>
+                        {item.icon}
+                      </Box>
+                    </Box>
+
+                    <Box sx={{ p:2,borderRadius:"12px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(74,222,128,0.08)",mb:2.5 }}>
+                      <Typography className="fm" sx={{ fontSize:10,color:"rgba(232,245,233,0.28)",letterSpacing:1.4,textTransform:"uppercase",mb:0.9 }}>
+                        Current Source
+                      </Typography>
+                      <Typography className="fm" sx={{ fontSize:12,color:item.color,wordBreak:"break-all" }}>
+                        {item.hint}
+                      </Typography>
+                    </Box>
+
+                    <Typography className="fs" sx={{ fontSize:13,color:"rgba(232,245,233,0.4)",lineHeight:1.8,mb:3,flex:1 }}>
+                      Place the installer file in the matching `public/downloads/` path or set a hosted URL in your environment variables.
+                    </Typography>
+
+                    <Button
+                      component="a"
+                      href={item.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      sx={{
+                        alignSelf:"flex-start",
+                        px:2.5,
+                        py:1.1,
+                        borderRadius:"10px",
+                        textTransform:"none",
+                        fontWeight:500,
+                        color:item.color,
+                        border:`1px solid ${item.color}40`,
+                        "&:hover":{ background:`${item.color}12` },
+                      }}
+                    >
+                      {item.cta}
+                    </Button>
+                  </Box>
+                </motion.div>
+              </Grid>
+            ))}
+          </Grid>
         </Container>
       </Box>
 

@@ -4,6 +4,7 @@ import {
   Button,
   CircularProgress,
   Divider,
+  Dialog,
   FormControl,
   MenuItem,
   Select,
@@ -136,6 +137,7 @@ export default function History() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [attachmentMode, setAttachmentMode] = useState("automatic");
   const [selectedDate, setSelectedDate] = useState("");
+  const [zoomedImage, setZoomedImage] = useState(null);
   const [error, setError] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageSuccess, setImageSuccess] = useState("");
@@ -600,12 +602,19 @@ export default function History() {
                     component="img"
                     src={`data:${image.contentType};base64,${image.imageBase64}`}
                     alt={image.fileName || "Evidence"}
+                    onClick={() => setZoomedImage(image)}
                     sx={{
                       width: "100%",
                       maxHeight: 320,
                       objectFit: "cover",
                       borderRadius: "14px",
                       border: "1px solid rgba(56,189,248,0.15)",
+                      cursor: "zoom-in",
+                      transition: "transform 0.2s ease, border-color 0.2s ease",
+                      "&:hover": {
+                        transform: "scale(1.01)",
+                        borderColor: "rgba(56,189,248,0.32)",
+                      },
                     }}
                   />
 
@@ -787,6 +796,78 @@ export default function History() {
           </Box>
         )}
       </Box>
+
+      <Dialog
+        open={Boolean(zoomedImage)}
+        onClose={() => setZoomedImage(null)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            background: "rgba(4,13,8,0.96)",
+            border: "1px solid rgba(56,189,248,0.16)",
+            borderRadius: "20px",
+            overflow: "hidden",
+            boxShadow: "0 24px 70px rgba(0,0,0,0.5)",
+          },
+        }}
+      >
+        {zoomedImage && (
+          <Box sx={{ p: { xs: 2, md: 3 } }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 2,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+                mb: 2,
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontSize: 20, mb: 0.5 }}>
+                  {zoomedImage.fileName || "Mushroom evidence"}
+                </Typography>
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    color: "rgba(232,245,233,0.5)",
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  Uploaded: {formatDateTime(zoomedImage.uploadedAt)}
+                </Typography>
+              </Box>
+
+              <Button
+                onClick={() => setZoomedImage(null)}
+                sx={{
+                  color: "#e8f5e9",
+                  border: "1px solid rgba(232,245,233,0.16)",
+                  borderRadius: "10px",
+                  px: 1.8,
+                }}
+              >
+                Close
+              </Button>
+            </Box>
+
+            <Box
+              component="img"
+              src={`data:${zoomedImage.contentType};base64,${zoomedImage.imageBase64}`}
+              alt={zoomedImage.fileName || "Evidence"}
+              sx={{
+                width: "100%",
+                maxHeight: "78vh",
+                objectFit: "contain",
+                borderRadius: "16px",
+                border: "1px solid rgba(56,189,248,0.15)",
+                background: "rgba(8,15,10,0.92)",
+              }}
+            />
+          </Box>
+        )}
+      </Dialog>
     </Box>
   );
 }

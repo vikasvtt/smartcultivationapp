@@ -41,7 +41,6 @@ const CHART_META = [
 const NAV_TABS = [
   { key:"dashboard",  label:"Dashboard",        icon:"📊" },
   { key:"history",    label:"History",          icon:"🕘" },
-  { key:"downloads",  label:"Downloads",        icon:"⬇️" },
   { key:"users",      label:"Users",            icon:"👥", adminOnly: true },
   { key:"config",     label:"Device Config",    icon:"⚙️" },
   { key:"firmware",   label:"Firmware Update",  icon:"📦", adminOnly: true },
@@ -268,106 +267,6 @@ function handleNavAction(tabKey, navigate, setActiveTab) {
   }
 
   setActiveTab(tabKey);
-}
-
-function DownloadsPanel() {
-  const downloads = [
-    {
-      key: "windows",
-      title: "Windows App",
-      subtitle: "Desktop installer for Windows",
-      icon: "🪟",
-      color: "#60a5fa",
-      href: process.env.REACT_APP_WINDOWS_DOWNLOAD_URL || "/downloads/smartcultivation-windows.zip",
-      fileHint: process.env.REACT_APP_WINDOWS_DOWNLOAD_URL || "public/downloads/smartcultivation-windows.zip",
-      cta: "Download for Windows",
-      notes: "Use a hosted EXE/MSI/ZIP link or place the file in public/downloads.",
-    },
-    {
-      key: "android",
-      title: "Android App",
-      subtitle: "Installable APK for Android devices",
-      icon: "🤖",
-      color: "#4ade80",
-      href: process.env.REACT_APP_ANDROID_DOWNLOAD_URL || "/downloads/smartcultivation-android.apk",
-      fileHint: process.env.REACT_APP_ANDROID_DOWNLOAD_URL || "public/downloads/smartcultivation-android.apk",
-      cta: "Download for Android",
-      notes: "If using APK, Android may ask you to allow installs from this source.",
-    },
-  ];
-
-  return (
-    <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0}>
-      <Box sx={{ display:"grid",gridTemplateColumns:{ xs:"1fr", md:"1fr 1fr" },gap:3 }}>
-        {downloads.map((item, index) => (
-          <motion.div key={item.key} variants={fadeUp} initial="hidden" animate="visible" custom={index}>
-            <Box
-              sx={{
-                p:{ xs:3, md:3.5 },
-                borderRadius:"18px",
-                border:"1px solid rgba(74,222,128,0.1)",
-                background:"linear-gradient(180deg, rgba(10,24,14,0.95), rgba(8,15,10,0.82))",
-                boxShadow:"0 18px 40px rgba(0,0,0,0.18)",
-                height:"100%",
-                display:"flex",
-                flexDirection:"column",
-              }}
-            >
-              <Box sx={{ display:"flex",alignItems:"center",justifyContent:"space-between",mb:2 }}>
-                <Box>
-                  <Typography sx={{ fontSize:11,letterSpacing:2,color:"rgba(232,245,233,0.35)",textTransform:"uppercase",fontFamily:"'JetBrains Mono',monospace",mb:0.6 }}>
-                    Application Download
-                  </Typography>
-                  <Typography sx={{ fontSize:24,fontWeight:600,color:"#e8f5e9" }}>
-                    {item.title}
-                  </Typography>
-                </Box>
-                <Box sx={{ width:52,height:52,borderRadius:"16px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,background:`${item.color}1A`,border:`1px solid ${item.color}40` }}>
-                  {item.icon}
-                </Box>
-              </Box>
-
-              <Typography sx={{ fontSize:14,color:"rgba(232,245,233,0.55)",mb:2.5 }}>
-                {item.subtitle}
-              </Typography>
-
-              <Box sx={{ p:2,borderRadius:"12px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(74,222,128,0.08)",mb:2.5 }}>
-                <Typography sx={{ fontSize:10,letterSpacing:1.5,color:"rgba(232,245,233,0.3)",textTransform:"uppercase",fontFamily:"'JetBrains Mono',monospace",mb:0.8 }}>
-                  Download Source
-                </Typography>
-                <Typography sx={{ fontSize:12,color:item.color,fontFamily:"'JetBrains Mono',monospace",wordBreak:"break-all" }}>
-                  {item.fileHint}
-                </Typography>
-              </Box>
-
-              <Typography sx={{ fontSize:12,color:"rgba(232,245,233,0.45)",mb:3,flex:1 }}>
-                {item.notes}
-              </Typography>
-
-              <Button
-                component="a"
-                href={item.href}
-                target="_blank"
-                rel="noreferrer"
-                sx={{
-                  alignSelf:"flex-start",
-                  fontSize:12,
-                  color:item.color,
-                  border:`1px solid ${item.color}33`,
-                  borderRadius:"10px",
-                  px:2.2,
-                  py:1,
-                  "&:hover":{ background:`${item.color}14` },
-                }}
-              >
-                {item.cta}
-              </Button>
-            </Box>
-          </motion.div>
-        ))}
-      </Box>
-    </motion.div>
-  );
 }
 
 function AdminUsersPanel({
@@ -1120,10 +1019,6 @@ export default function Dashboard() {
                   onRefresh={fetchAdminUsers}
                   onSave={saveAdminUser}
                 />
-              )}
-
-              {activeTab === "downloads" && (
-                <DownloadsPanel />
               )}
 
               {activeTab === "dashboard" && (
