@@ -59,10 +59,14 @@ export async function getEvidenceImages(deviceId) {
   return res.json();
 }
 
-export async function uploadEvidenceImage(deviceId, file) {
+export async function uploadEvidenceImage(deviceId, file, options = {}) {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("image", file);
+    formData.append("attachmentMode", options.attachmentMode || "automatic");
+    if (options.selectedDate) {
+      formData.append("selectedDate", options.selectedDate);
+    }
 
     const token = localStorage.getItem("token");
     const xhr = new XMLHttpRequest();

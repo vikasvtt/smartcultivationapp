@@ -7,6 +7,9 @@ import {
   FormControl,
   MenuItem,
   Select,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -52,6 +55,11 @@ function formatDateTime(value) {
 function formatValue(value, unit = "") {
   if (value === null || value === undefined || value === "") return "—";
   return `${value}${unit}`;
+}
+
+function formatSelectedDate(value) {
+  if (!value) return "";
+  return formatDateTime(`${value}T00:00:00`);
 }
 
 function RelayPill({ label, value }) {
@@ -124,6 +132,8 @@ export default function History() {
   const [imagesLoading, setImagesLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [attachmentMode, setAttachmentMode] = useState("automatic");
+  const [selectedDate, setSelectedDate] = useState("");
   const [error, setError] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageSuccess, setImageSuccess] = useState("");
@@ -426,8 +436,66 @@ export default function History() {
         >
           <Typography sx={{ fontSize: 20, mb: 0.7 }}>Mushroom Evidence</Typography>
           <Typography sx={{ fontSize: 12, color: "rgba(232,245,233,0.45)", mb: 2 }}>
-            Upload a mushroom image as evidence. The system saves it in MongoDB `images` and links it with the nearest telemetry reading at upload time.
+            Upload a mushroom image as evidence. Choose automatic mode to attach the nearest telemetry at upload time, or choose a custom date and match the nearest reading on that date for the upload time-of-day.
           </Typography>
+
+          <Box sx={{ mb: 2, display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+            <ToggleButtonGroup
+              exclusive
+              value={attachmentMode}
+              onChange={(_, value) => {
+                if (value) setAttachmentMode(value);
+              }}
+              sx={{ gap: 1 }}
+            >
+              <ToggleButton
+                value="automatic"
+                sx={{
+                  border: "1px solid rgba(74,222,128,0.16) !important",
+                  borderRadius: "10px !important",
+                  color: attachmentMode === "automatic" ? "#4ade80" : "rgba(232,245,233,0.55)",
+                  background: attachmentMode === "automatic" ? "rgba(74,222,128,0.1)" : "transparent",
+                  textTransform: "none",
+                  px: 2,
+                }}
+              >
+                Automatic Data
+              </ToggleButton>
+              <ToggleButton
+                value="custom"
+                sx={{
+                  border: "1px solid rgba(56,189,248,0.16) !important",
+                  borderRadius: "10px !important",
+                  color: attachmentMode === "custom" ? "#38bdf8" : "rgba(232,245,233,0.55)",
+                  background: attachmentMode === "custom" ? "rgba(56,189,248,0.1)" : "transparent",
+                  textTransform: "none",
+                  px: 2,
+                }}
+              >
+                Custom Date Data
+              </ToggleButton>
+            </ToggleButtonGroup>
+
+            {attachmentMode === "custom" && (
+              <TextField
+                type="date"
+                size="small"
+                value={selectedDate}
+                onChange={(event) => setSelectedDate(event.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{
+                  minWidth: 190,
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "10px",
+                    color: "#e8f5e9",
+                    "& fieldset": { borderColor: "rgba(56,189,248,0.18)" },
+                    "&:hover fieldset": { borderColor: "rgba(56,189,248,0.32)" },
+                  },
+                  "& input": { colorScheme: "dark" },
+                }}
+              />
+            )}
+          </Box>
 
           <Box sx={{ display: "flex", gap: 1.2, flexWrap: "wrap", alignItems: "center", mb: 1.5 }}>
             <Button
@@ -455,12 +523,19 @@ export default function History() {
             <Button
               onClick={async () => {
                 if (!selectedDevice || !selectedFile) return;
+                if (attachmentMode === "custom" && !selectedDate) {
+                  setImageError("Please choose a custom date before uploading.");
+                  return;
+                }
 
                 try {
                   setUploadingImage(true);
                   setImageError("");
                   setImageSuccess("");
-                  const uploaded = await uploadEvidenceImage(selectedDevice, selectedFile);
+                  const uploaded = await uploadEvidenceImage(selectedDevice, selectedFile, {
+                    attachmentMode,
+                    selectedDate,
+                  });
                   setImages((prev) => [uploaded, ...prev]);
                   setSelectedFile(null);
                   setImageSuccess("Evidence image uploaded successfully");
@@ -545,6 +620,17 @@ export default function History() {
                       }}
                     >
                       Uploaded: {formatDateTime(image.uploadedAt)}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: 11,
+                        color: "rgba(232,245,233,0.5)",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        mb: 1.2,
+                      }}
+                    >
+                      Match mode: {image.attachmentMode === "custom" ? `custom date (${formatSelectedDate(image.selectedDate)})` : "automatic"}
                     </Typography>
 
                     <Typography sx={{ fontSize: 13, color: "rgba(232,245,233,0.55)", mb: 1 }}>

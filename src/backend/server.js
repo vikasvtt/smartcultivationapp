@@ -96,6 +96,8 @@ const imageSchema = new mongoose.Schema(
     contentType: String,
     imageData: Buffer,
     uploadedAt: { type: Date, default: Date.now },
+    attachmentMode: { type: String, default: "automatic" },
+    selectedDate: { type: String, default: "" },
     telemetry: { type: Object, default: null },
   },
   {
@@ -411,6 +413,8 @@ function buildImageResponse(doc) {
     fileName: doc.fileName,
     contentType: doc.contentType,
     uploadedAt: doc.uploadedAt,
+    attachmentMode: doc.attachmentMode || "automatic",
+    selectedDate: doc.selectedDate || "",
     telemetry: doc.telemetry || null,
     imageBase64: doc.imageData ? doc.imageData.toString("base64") : null,
   };
@@ -420,6 +424,47 @@ async function findNearestTelemetry(deviceId, targetTime) {
   const [before, after] = await Promise.all([
     Telemetry.findOne({ deviceId, time: { $lte: targetTime } }).sort({ time: -1 }).lean(),
     Telemetry.findOne({ deviceId, time: { $gte: targetTime } }).sort({ time: 1 }).lean(),
+  ]);
+
+  if (!before) return after || null;
+  if (!after) return before || null;
+
+  const beforeDiff = Math.abs(new Date(before.time).getTime() - targetTime.getTime());
+  const afterDiff = Math.abs(new Date(after.time).getTime() - targetTime.getTime());
+
+  return beforeDiff <= afterDiff ? before : after;
+}
+
+async function findNearestTelemetryForSelectedDate(deviceId, selectedDate, uploadTime) {
+  const baseDate = new Date(selectedDate);
+
+  if (Number.isNaN(baseDate.getTime())) {
+    throw new Error("Invalid selected date");
+  }
+
+  const dayStart = new Date(baseDate);
+  dayStart.setHours(0, 0, 0, 0);
+
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const targetTime = new Date(dayStart);
+  targetTime.setHours(
+    uploadTime.getHours(),
+    uploadTime.getMinutes(),
+    uploadTime.getSeconds(),
+    uploadTime.getMilliseconds()
+  );
+
+  const [before, after] = await Promise.all([
+    Telemetry.findOne({
+      deviceId,
+      time: { $gte: dayStart, $lt: dayEnd, $lte: targetTime },
+    }).sort({ time: -1 }).lean(),
+    Telemetry.findOne({
+      deviceId,
+      time: { $gte: dayStart, $lt: dayEnd, $gte: targetTime },
+    }).sort({ time: 1 }).lean(),
   ]);
 
   if (!before) return after || null;
@@ -462,6 +507,8 @@ app.get("/api/images/:deviceId", auth, async (req, res) => {
 app.post("/api/images/:deviceId", auth, imageUpload.single("image"), async (req, res) => {
   try {
     const { deviceId } = req.params;
+    const attachmentMode = req.body.attachmentMode === "custom" ? "custom" : "automatic";
+    const selectedDate = req.body.selectedDate || "";
 
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
@@ -472,7 +519,9 @@ app.post("/api/images/:deviceId", auth, imageUpload.single("image"), async (req,
     }
 
     const uploadedAt = new Date();
-    const telemetry = await findNearestTelemetry(deviceId, uploadedAt);
+    const telemetry = attachmentMode === "custom"
+      ? await findNearestTelemetryForSelectedDate(deviceId, selectedDate, uploadedAt)
+      : await findNearestTelemetry(deviceId, uploadedAt);
 
     const imageRecord = await ImageRecord.create({
       deviceId,
@@ -480,6 +529,8 @@ app.post("/api/images/:deviceId", auth, imageUpload.single("image"), async (req,
       contentType: req.file.mimetype,
       imageData: req.file.buffer,
       uploadedAt,
+      attachmentMode,
+      selectedDate,
       telemetry,
     });
 
