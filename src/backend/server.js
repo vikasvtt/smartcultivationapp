@@ -23,9 +23,30 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const allowedOrigins = new Set([
+  "https://growio-eight.vercel.app",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "capacitor://localhost",
+  "ionic://localhost",
+  ...(process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean) : []),
+]);
+
 app.use(
   cors({
-    origin: ["https://growio-eight.vercel.app"],
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.has(origin) || origin.endsWith(".vercel.app")) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     credentials: true,
   })
 );

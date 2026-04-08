@@ -86,6 +86,18 @@ function statusIcon(val) {
   return { label:String(val), color:"rgba(232,245,233,0.55)" };
 }
 
+function relayDisplayValue(telemetryValue, relayConfig) {
+  if (relayConfig && typeof relayConfig.enabled === "boolean") {
+    return relayConfig.enabled ? "ON" : "OFF";
+  }
+
+  if (telemetryValue !== null && telemetryValue !== undefined && telemetryValue !== "") {
+    return telemetryValue;
+  }
+
+  return null;
+}
+
 // ── Custom Tooltip ───────────────────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -726,6 +738,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab]         = useState("dashboard");
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [latest, setLatest]               = useState(null);
+  const [currentConfig, setCurrentConfig] = useState(null);
   const [history, setHistory]             = useState([]);
   const [allLatest, setAllLatest]         = useState([]);
   const [loading, setLoading]             = useState(true);
@@ -755,11 +768,13 @@ export default function Dashboard() {
     if (!deviceId) return;
     try {
       setFetchError("");
-      const [latestDoc, historyDocs] = await Promise.all([
+      const [latestDoc, historyDocs, configDoc] = await Promise.all([
         getLatestReading(deviceId),
         getSensorHistory(deviceId, 30),
+        getConfig(deviceId).catch(() => null),
       ]);
       setLatest(latestDoc);
+      setCurrentConfig(configDoc);
       setHistory(historyDocs.map(formatForChart));
       setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
@@ -1115,9 +1130,9 @@ export default function Dashboard() {
 
                     {/* ── DEVICE CONTROLS ── */}
                     <DeviceStatusRow
-                      light={latest?.light ?? null}
-                      fan={latest?.fan ?? null}
-                      motor={latest?.motor ?? null}
+                      light={relayDisplayValue(latest?.light, currentConfig?.relays?.light)}
+                      fan={relayDisplayValue(latest?.fan, currentConfig?.relays?.fan)}
+                      motor={relayDisplayValue(latest?.motor, currentConfig?.relays?.motor)}
                     />
 
                     {/* ── CHART (now with soil tab) ── */}

@@ -144,6 +144,7 @@ export default function History() {
   const [attachmentMode, setAttachmentMode] = useState("automatic");
   const [selectedDate, setSelectedDate] = useState("");
   const [zoomedImage, setZoomedImage] = useState(null);
+  const [visibleImageCount, setVisibleImageCount] = useState(6);
   const [error, setError] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageSuccess, setImageSuccess] = useState("");
@@ -172,6 +173,7 @@ export default function History() {
       setImageError("");
       const data = await getEvidenceImages(deviceId);
       setImages(data);
+      setVisibleImageCount(6);
     } catch (err) {
       setImageError(err.message || "Failed to load evidence images");
       setImages([]);
@@ -547,6 +549,7 @@ export default function History() {
                     selectedDate,
                   });
                   setImages((prev) => [uploaded, ...prev]);
+                  setVisibleImageCount((prev) => Math.max(prev, 6));
                   setSelectedFile(null);
                   setImageSuccess("Evidence image uploaded successfully");
                 } catch (err) {
@@ -591,7 +594,7 @@ export default function History() {
             </Box>
           ) : (
             <Box sx={{ display: "grid", gap: 2 }}>
-              {images.map((image) => (
+              {images.slice(0, visibleImageCount).map((image) => (
                 <Box
                   key={image._id}
                   sx={{
@@ -713,6 +716,20 @@ export default function History() {
                   </Box>
                 </Box>
               ))}
+              {images.length > visibleImageCount && (
+                <Button
+                  onClick={() => setVisibleImageCount((prev) => prev + 6)}
+                  sx={{
+                    justifySelf: "center",
+                    color: "#38bdf8",
+                    border: "1px solid rgba(56,189,248,0.22)",
+                    borderRadius: "10px",
+                    px: 2.5,
+                  }}
+                >
+                  Load More Evidence
+                </Button>
+              )}
             </Box>
           )}
         </Box>

@@ -41,4 +41,7 @@ app-build/
 android/.gradle/
 android/build/
 android/app/build/
-
+android/
+release/
+android/.idea/
+android/.idea/misc.xml
