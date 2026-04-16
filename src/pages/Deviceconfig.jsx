@@ -1075,7 +1075,7 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
                           </Box>
                           <Box component="td">
                             <Box sx={{ px: 1, py: 0.2, borderRadius: "4px", display: "inline-block", background: `${meta.color}15`, color: meta.color, fontSize: 10, fontFamily: "'JetBrains Mono',monospace" }}>
-                              {r.conditions?.length > 1 ? r.logic : "—"}
+                              {(r.conditions?.length > 1 || r.schedule?.enabled) ? (r.logic || "AND") : "—"}
                             </Box>
                           </Box>
                           <Box component="td">
