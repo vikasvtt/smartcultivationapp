@@ -37,6 +37,32 @@ const FAN_SCHEDULE_DEFAULT = {
   durationMinutes: 2,
 };
 
+const FIXED_TIME_ENTRY_DEFAULT = {
+  hour: 9,
+  minute: 0,
+  durationSeconds: 30,
+};
+
+const FIXED_TIMES_SCHEDULE_DEFAULT = {
+  enabled: false,
+  type: "fixed_times",
+  entries: [{ ...FIXED_TIME_ENTRY_DEFAULT }],
+};
+
+function getDefaultSchedule(key) {
+  return key === "fan"
+    ? { ...FAN_SCHEDULE_DEFAULT }
+    : { ...FIXED_TIMES_SCHEDULE_DEFAULT, entries: [{ ...FIXED_TIME_ENTRY_DEFAULT }] };
+}
+
+function normalizeFixedTimeEntry(entry) {
+  return {
+    hour: Number.isFinite(Number(entry?.hour)) ? Math.min(23, Math.max(0, Number(entry.hour))) : FIXED_TIME_ENTRY_DEFAULT.hour,
+    minute: Number.isFinite(Number(entry?.minute)) ? Math.min(59, Math.max(0, Number(entry.minute))) : FIXED_TIME_ENTRY_DEFAULT.minute,
+    durationSeconds: Number.isFinite(Number(entry?.durationSeconds)) ? Math.max(1, Number(entry.durationSeconds)) : FIXED_TIME_ENTRY_DEFAULT.durationSeconds,
+  };
+}
+
 function makeDefaultRelay(key) {
   const relay = {
     enabled:    true,
@@ -44,9 +70,7 @@ function makeDefaultRelay(key) {
     conditions: [{ ...RELAY_DEFAULTS[key] }],
   };
 
-  if (key === "fan") {
-    relay.schedule = { ...FAN_SCHEDULE_DEFAULT };
-  }
+  relay.schedule = getDefaultSchedule(key);
 
   return relay;
 }
@@ -101,19 +125,32 @@ function normaliseRelay(raw, key) {
     conditions,
   };
 
-  if (key === "fan") {
-    const schedule = raw.schedule || {};
-    relay.schedule = {
-      enabled: typeof schedule.enabled === "boolean" ? schedule.enabled : FAN_SCHEDULE_DEFAULT.enabled,
-      type: schedule.type === "hourly" ? "hourly" : FAN_SCHEDULE_DEFAULT.type,
-      startMinute: Number.isFinite(Number(schedule.startMinute))
-        ? Math.min(59, Math.max(0, Number(schedule.startMinute)))
-        : FAN_SCHEDULE_DEFAULT.startMinute,
-      durationMinutes: Number.isFinite(Number(schedule.durationMinutes))
-        ? Math.max(1, Number(schedule.durationMinutes))
-        : FAN_SCHEDULE_DEFAULT.durationMinutes,
-    };
-  }
+  const defaultSchedule = getDefaultSchedule(key);
+  const schedule = raw.schedule || {};
+  const scheduleType = schedule.type === "fixed_times"
+    ? "fixed_times"
+    : key === "fan"
+      ? "hourly"
+      : "fixed_times";
+
+  relay.schedule = scheduleType === "hourly"
+    ? {
+        enabled: typeof schedule.enabled === "boolean" ? schedule.enabled : defaultSchedule.enabled,
+        type: "hourly",
+        startMinute: Number.isFinite(Number(schedule.startMinute))
+          ? Math.min(59, Math.max(0, Number(schedule.startMinute)))
+          : FAN_SCHEDULE_DEFAULT.startMinute,
+        durationMinutes: Number.isFinite(Number(schedule.durationMinutes))
+          ? Math.max(1, Number(schedule.durationMinutes))
+          : FAN_SCHEDULE_DEFAULT.durationMinutes,
+      }
+    : {
+        enabled: typeof schedule.enabled === "boolean" ? schedule.enabled : defaultSchedule.enabled,
+        type: "fixed_times",
+        entries: Array.isArray(schedule.entries) && schedule.entries.length > 0
+          ? schedule.entries.slice(0, 5).map(normalizeFixedTimeEntry)
+          : defaultSchedule.entries.map((entry) => ({ ...entry })),
+      };
 
   return relay;
 }
@@ -265,12 +302,12 @@ function ConditionRow({ condition, rowId, index, total, color, enabled, relayKey
       />
 
       {/* Remove — hidden on mobile (button below instead) */}
-      <Tooltip title={total <= 1 ? "Need at least one condition" : "Remove"}>
+      <Tooltip title="Remove">
         <span>
           <IconButton
             size="small"
             onClick={() => onRemove(index)}
-            disabled={!enabled || total <= 1}
+            disabled={!enabled}
             sx={{
               display: { xs: "none", sm: "flex" },
               mt: 0.3, color: "rgba(248,113,113,0.6)",
@@ -284,7 +321,7 @@ function ConditionRow({ condition, rowId, index, total, color, enabled, relayKey
       </Tooltip>
 
       {/* Mobile remove */}
-      {total > 1 && (
+      {total > 0 && (
         <Button size="small" onClick={() => onRemove(index)} disabled={!enabled}
           sx={{
             display: { xs: "flex", sm: "none" },
@@ -330,23 +367,82 @@ function RelayCard({ meta, relay, onRelayChange, onSave, saving, lastSaved }) {
     patch({ conditions: [...relay.conditions, { ...RELAY_DEFAULTS[meta.key] }] });
   }, [relay.conditions, meta.key, patch]);
 
+  const setSchedule = useCallback((scheduleUpdates) => {
+    patch({
+      schedule: {
+        ...getDefaultSchedule(meta.key),
+        ...relay.schedule,
+        ...scheduleUpdates,
+      },
+    });
+  }, [meta.key, patch, relay.schedule]);
+
+  const updateFixedTimeEntry = useCallback((idx, field, value) => {
+    const currentEntries = Array.isArray(relay.schedule?.entries) ? relay.schedule.entries : [];
+    setSchedule({
+      type: "fixed_times",
+      entries: currentEntries.map((entry, entryIndex) => (
+        entryIndex === idx ? { ...entry, [field]: value } : entry
+      )),
+    });
+  }, [relay.schedule?.entries, setSchedule]);
+
+  const addFixedTimeEntry = useCallback(() => {
+    const currentEntries = Array.isArray(relay.schedule?.entries) ? relay.schedule.entries : [];
+    if (currentEntries.length >= 5) return;
+
+    setSchedule({
+      type: "fixed_times",
+      entries: [...currentEntries, { ...FIXED_TIME_ENTRY_DEFAULT }],
+    });
+  }, [relay.schedule?.entries, setSchedule]);
+
+  const removeFixedTimeEntry = useCallback((idx) => {
+    const currentEntries = Array.isArray(relay.schedule?.entries) ? relay.schedule.entries : [];
+    setSchedule({
+      type: "fixed_times",
+      entries: currentEntries.filter((_, entryIndex) => entryIndex !== idx),
+    });
+  }, [relay.schedule?.entries, setSchedule]);
+
   // Sync ids array length if relay.conditions was reset externally (e.g. fetch/reset)
   if (idCounterRef.current.length !== relay.conditions.length) {
     idCounterRef.current = relay.conditions.map((_, i) => i + 1);
   }
 
-  const allValid = relay.conditions.length > 0 && relay.conditions.every((c) => {
+  const conditionsValid = relay.conditions.every((c) => {
     if (c.parameter === "soilStatus") return typeof c.value === "string" && c.value.trim() !== "";
     return c.value !== undefined && c.value !== null && c.value !== "" && !isNaN(Number(c.value));
   });
-
-  const scheduleValid = meta.key !== "fan" || !relay.schedule?.enabled || (
-    Number.isFinite(Number(relay.schedule?.startMinute)) &&
-    Number(relay.schedule.startMinute) >= 0 &&
-    Number(relay.schedule.startMinute) <= 59 &&
-    Number.isFinite(Number(relay.schedule?.durationMinutes)) &&
-    Number(relay.schedule.durationMinutes) > 0
+  const scheduleEnabled = Boolean(relay.schedule?.enabled);
+  const scheduleType = relay.schedule?.type === "fixed_times" ? "fixed_times" : "hourly";
+  const fixedEntries = Array.isArray(relay.schedule?.entries) ? relay.schedule.entries : [];
+  const scheduleValid = !scheduleEnabled || (
+    scheduleType === "hourly"
+      ? (
+          Number.isFinite(Number(relay.schedule?.startMinute)) &&
+          Number(relay.schedule.startMinute) >= 0 &&
+          Number(relay.schedule.startMinute) <= 59 &&
+          Number.isFinite(Number(relay.schedule?.durationMinutes)) &&
+          Number(relay.schedule.durationMinutes) > 0
+        )
+      : (
+          fixedEntries.length > 0 &&
+          fixedEntries.length <= 5 &&
+          fixedEntries.every((entry) => (
+            Number.isFinite(Number(entry?.hour)) &&
+            Number(entry.hour) >= 0 &&
+            Number(entry.hour) <= 23 &&
+            Number.isFinite(Number(entry?.minute)) &&
+            Number(entry.minute) >= 0 &&
+            Number(entry.minute) <= 59 &&
+            Number.isFinite(Number(entry?.durationSeconds)) &&
+            Number(entry.durationSeconds) > 0
+          ))
+        )
   );
+  const hasAutomationSource = relay.conditions.length > 0 || scheduleEnabled;
+  const configValid = conditionsValid && scheduleValid && hasAutomationSource;
 
   return (
     <motion.div variants={fadeUp} initial="hidden" animate="visible"
@@ -434,77 +530,177 @@ function RelayCard({ meta, relay, onRelayChange, onSave, saving, lastSaved }) {
               onRemove={removeCondition}
             />
           ))}
+          {relay.conditions.length === 0 && (
+            <Box sx={{ mb: 1.5, p: 1.5, borderRadius: "10px", border: `1px dashed ${meta.color}35`, background: `${meta.color}08` }}>
+              <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.5)" }}>
+                No conditions configured. This relay will run from schedule only if schedule is enabled.
+              </Typography>
+            </Box>
+          )}
         </Box>
 
-        {meta.key === "fan" && (
-          <Box sx={{ mb: 2, p: 1.8, borderRadius: "10px", background: "rgba(56,189,248,0.06)", border: "1px solid rgba(56,189,248,0.16)" }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, flexWrap: "wrap", mb: 1.5 }}>
-              <Box>
-                <Typography sx={{ fontSize: 10, letterSpacing: 1.5, color: "rgba(232,245,233,0.3)", textTransform: "uppercase", fontFamily: "'JetBrains Mono',monospace" }}>
-                  Fan Schedule
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.45)", mt: 0.5 }}>
-                  Combine an hourly window with the fan conditions using the relay logic.
-                </Typography>
-              </Box>
-              <Switch
-                checked={Boolean(relay.schedule?.enabled)}
-                onChange={(e) => patch({
-                  schedule: {
-                    ...FAN_SCHEDULE_DEFAULT,
-                    ...relay.schedule,
-                    enabled: e.target.checked,
-                  },
-                })}
-                disabled={!relay.enabled}
-                size="small"
-                sx={{
-                  "& .MuiSwitch-switchBase.Mui-checked": { color: meta.color },
-                  "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: meta.color },
-                }}
-              />
+        <Box sx={{ mb: 2, p: 1.8, borderRadius: "10px", background: `${meta.color}10`, border: `1px solid ${meta.color}26` }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, flexWrap: "wrap", mb: 1.5 }}>
+            <Box>
+              <Typography sx={{ fontSize: 10, letterSpacing: 1.5, color: "rgba(232,245,233,0.3)", textTransform: "uppercase", fontFamily: "'JetBrains Mono',monospace" }}>
+                Schedule
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.45)", mt: 0.5 }}>
+                {meta.key === "fan"
+                  ? "Use hourly windows or fixed times together with the fan logic."
+                  : "Use fixed-time runs with per-entry seconds, or leave schedule off and rely on conditions."}
+              </Typography>
             </Box>
-
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.2 }}>
-              <TextField
-                label="Start minute"
-                size="small"
-                type="number"
-                value={relay.schedule?.startMinute ?? FAN_SCHEDULE_DEFAULT.startMinute}
-                disabled={!relay.enabled || !relay.schedule?.enabled}
-                onChange={(e) => patch({
-                  schedule: {
-                    ...FAN_SCHEDULE_DEFAULT,
-                    ...relay.schedule,
-                    startMinute: e.target.value,
-                  },
-                })}
-                inputProps={{ min: 0, max: 59 }}
-                error={Boolean(relay.schedule?.enabled) && (Number(relay.schedule?.startMinute) < 0 || Number(relay.schedule?.startMinute) > 59)}
-                helperText="0 to 59 every hour"
-                sx={textFieldSx(meta.color)}
-              />
-              <TextField
-                label="Run for minutes"
-                size="small"
-                type="number"
-                value={relay.schedule?.durationMinutes ?? FAN_SCHEDULE_DEFAULT.durationMinutes}
-                disabled={!relay.enabled || !relay.schedule?.enabled}
-                onChange={(e) => patch({
-                  schedule: {
-                    ...FAN_SCHEDULE_DEFAULT,
-                    ...relay.schedule,
-                    durationMinutes: e.target.value,
-                  },
-                })}
-                inputProps={{ min: 1 }}
-                error={Boolean(relay.schedule?.enabled) && Number(relay.schedule?.durationMinutes) <= 0}
-                helperText='Type is fixed as "hourly"'
-                sx={textFieldSx(meta.color)}
-              />
-            </Box>
+            <Switch
+              checked={scheduleEnabled}
+              onChange={(e) => setSchedule({ enabled: e.target.checked })}
+              disabled={!relay.enabled}
+              size="small"
+              sx={{
+                "& .MuiSwitch-switchBase.Mui-checked": { color: meta.color },
+                "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: meta.color },
+              }}
+            />
           </Box>
-        )}
+
+          <Box sx={{ display: "grid", gap: 1.2 }}>
+            <FormControl sx={selectSx(meta.color)} size="small">
+              <InputLabel>Schedule Type</InputLabel>
+              <Select
+                value={scheduleType}
+                label="Schedule Type"
+                disabled={!relay.enabled || !scheduleEnabled}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  setSchedule(
+                    nextType === "hourly"
+                      ? { ...FAN_SCHEDULE_DEFAULT, enabled: scheduleEnabled, type: "hourly" }
+                      : { ...FIXED_TIMES_SCHEDULE_DEFAULT, enabled: scheduleEnabled, type: "fixed_times", entries: [{ ...FIXED_TIME_ENTRY_DEFAULT }] }
+                  );
+                }}
+                MenuProps={{ PaperProps: { sx: menuPaperSx } }}
+              >
+                {meta.key === "fan" && <MenuItem value="hourly">hourly</MenuItem>}
+                <MenuItem value="fixed_times">fixed_times</MenuItem>
+              </Select>
+            </FormControl>
+
+            {scheduleType === "hourly" ? (
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.2 }}>
+                <TextField
+                  label="Start minute"
+                  size="small"
+                  type="number"
+                  value={relay.schedule?.startMinute ?? FAN_SCHEDULE_DEFAULT.startMinute}
+                  disabled={!relay.enabled || !scheduleEnabled}
+                  onChange={(e) => setSchedule({ startMinute: e.target.value, type: "hourly" })}
+                  inputProps={{ min: 0, max: 59 }}
+                  error={scheduleEnabled && (Number(relay.schedule?.startMinute) < 0 || Number(relay.schedule?.startMinute) > 59)}
+                  helperText="0 to 59 every hour"
+                  sx={textFieldSx(meta.color)}
+                />
+                <TextField
+                  label="Run for minutes"
+                  size="small"
+                  type="number"
+                  value={relay.schedule?.durationMinutes ?? FAN_SCHEDULE_DEFAULT.durationMinutes}
+                  disabled={!relay.enabled || !scheduleEnabled}
+                  onChange={(e) => setSchedule({ durationMinutes: e.target.value, type: "hourly" })}
+                  inputProps={{ min: 1 }}
+                  error={scheduleEnabled && Number(relay.schedule?.durationMinutes) <= 0}
+                  helperText='Type "hourly"'
+                  sx={textFieldSx(meta.color)}
+                />
+              </Box>
+            ) : (
+              <Box sx={{ display: "grid", gap: 1.2 }}>
+                {fixedEntries.map((entry, idx) => (
+                  <Box
+                    key={`${meta.key}-entry-${idx}`}
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr) 44px" },
+                      gap: 1,
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <TextField
+                      label="Hour"
+                      size="small"
+                      type="number"
+                      value={entry.hour}
+                      disabled={!relay.enabled || !scheduleEnabled}
+                      onChange={(e) => updateFixedTimeEntry(idx, "hour", e.target.value)}
+                      inputProps={{ min: 0, max: 23 }}
+                      error={scheduleEnabled && (Number(entry.hour) < 0 || Number(entry.hour) > 23)}
+                      helperText="0 to 23"
+                      sx={textFieldSx(meta.color)}
+                    />
+                    <TextField
+                      label="Minute"
+                      size="small"
+                      type="number"
+                      value={entry.minute}
+                      disabled={!relay.enabled || !scheduleEnabled}
+                      onChange={(e) => updateFixedTimeEntry(idx, "minute", e.target.value)}
+                      inputProps={{ min: 0, max: 59 }}
+                      error={scheduleEnabled && (Number(entry.minute) < 0 || Number(entry.minute) > 59)}
+                      helperText="0 to 59"
+                      sx={textFieldSx(meta.color)}
+                    />
+                    <TextField
+                      label="Duration seconds"
+                      size="small"
+                      type="number"
+                      value={entry.durationSeconds}
+                      disabled={!relay.enabled || !scheduleEnabled}
+                      onChange={(e) => updateFixedTimeEntry(idx, "durationSeconds", e.target.value)}
+                      inputProps={{ min: 1 }}
+                      error={scheduleEnabled && Number(entry.durationSeconds) <= 0}
+                      helperText="Seconds"
+                      sx={textFieldSx(meta.color)}
+                    />
+                    <Tooltip title={fixedEntries.length === 1 ? "Keep at least one entry while fixed_times is enabled" : "Remove entry"}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          onClick={() => removeFixedTimeEntry(idx)}
+                          disabled={!relay.enabled || !scheduleEnabled || fixedEntries.length === 1}
+                          sx={{
+                            mt: 0.3,
+                            color: "rgba(248,113,113,0.6)",
+                            border: "1px solid rgba(248,113,113,0.2)",
+                            borderRadius: "6px",
+                            width: 36,
+                            height: 36,
+                            "&:hover": { background: "rgba(248,113,113,0.1)", color: "#f87171" },
+                          }}
+                        >
+                          ×
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </Box>
+                ))}
+                <Button
+                  size="small"
+                  onClick={addFixedTimeEntry}
+                  disabled={!relay.enabled || !scheduleEnabled || fixedEntries.length >= 5}
+                  sx={{
+                    justifySelf: "flex-start",
+                    fontSize: 11,
+                    borderRadius: "8px",
+                    fontFamily: "'JetBrains Mono',monospace",
+                    color: meta.color,
+                    border: `1px dashed ${meta.color}40`,
+                  }}
+                >
+                  ＋ Add Fixed Time
+                </Button>
+              </Box>
+            )}
+          </Box>
+        </Box>
 
         {/* Add condition button */}
         <Button
@@ -525,12 +721,12 @@ function RelayCard({ meta, relay, onRelayChange, onSave, saving, lastSaved }) {
         </Button>
 
         {/* Live preview */}
-        {relay.enabled && allValid && relay.conditions.length > 0 && (
+        {relay.enabled && configValid && (
           <Box sx={{ mb: 2, px: 1.5, py: 1.2, borderRadius: "8px", background: `${meta.color}0d`, border: `1px solid ${meta.color}25` }}>
             <Typography sx={{ fontSize: 9, color: "rgba(232,245,233,0.35)", fontFamily: "'JetBrains Mono',monospace", letterSpacing: 1, mb: 0.8, textTransform: "uppercase" }}>
               Preview
             </Typography>
-            {relay.conditions.map((c, i) => (
+            {relay.conditions.length > 0 ? relay.conditions.map((c, i) => (
               <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: i < relay.conditions.length - 1 ? 0.5 : 0 }}>
                 {i > 0 && (
                   <Box sx={{ px: 0.8, py: 0.1, borderRadius: "4px", background: `${meta.color}20`, mr: 0.5 }}>
@@ -543,11 +739,24 @@ function RelayCard({ meta, relay, onRelayChange, onSave, saving, lastSaved }) {
                   {meta.label} ON if {c.parameter} {c.operator} {c.value}
                 </Typography>
               </Box>
-            ))}
-            {meta.key === "fan" && relay.schedule?.enabled && (
+            )) : (
+              <Typography sx={{ fontSize: 11, color: meta.color, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.5 }}>
+                Schedule only mode is active.
+              </Typography>
+            )}
+            {scheduleEnabled && scheduleType === "hourly" && (
               <Typography sx={{ mt: 0.8, fontSize: 11, color: meta.color, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.5 }}>
                 Schedule: hourly from minute {relay.schedule.startMinute} for {relay.schedule.durationMinutes} minute(s)
               </Typography>
+            )}
+            {scheduleEnabled && scheduleType === "fixed_times" && (
+              <Box sx={{ mt: 0.8 }}>
+                {fixedEntries.map((entry, idx) => (
+                  <Typography key={`${meta.key}-preview-${idx}`} sx={{ fontSize: 11, color: meta.color, fontFamily: "'JetBrains Mono',monospace", lineHeight: 1.5 }}>
+                    Schedule fixed {String(entry.hour).padStart(2, "0")}:{String(entry.minute).padStart(2, "0")} +{entry.durationSeconds}s
+                  </Typography>
+                ))}
+              </Box>
             )}
           </Box>
         )}
@@ -556,7 +765,7 @@ function RelayCard({ meta, relay, onRelayChange, onSave, saving, lastSaved }) {
         <Button
           fullWidth
           onClick={onSave}
-          disabled={saving || !allValid || !scheduleValid}
+          disabled={saving || !configValid}
           sx={{
             py: 1.2, fontSize: 12, borderRadius: "8px", fontWeight: 500,
             fontFamily: "'JetBrains Mono', monospace",
@@ -644,12 +853,42 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
   const handleSave = useCallback(async (relayKey) => {
     const relay = relays[relayKey];
 
-    const hasInvalid = relay.conditions.length === 0 || relay.conditions.some((c) => {
+    const hasInvalidConditions = relay.conditions.some((c) => {
       if (c.parameter === "soilStatus") return typeof c.value !== "string" || c.value.trim() === "";
       return c.value === "" || c.value === undefined || isNaN(Number(c.value));
     });
+    const scheduleEnabled = Boolean(relay.schedule?.enabled);
+    const scheduleType = relay.schedule?.type === "fixed_times" ? "fixed_times" : "hourly";
+    const scheduleInvalid = !scheduleEnabled ? false : (
+      scheduleType === "hourly"
+        ? (
+            !Number.isFinite(Number(relay.schedule?.startMinute)) ||
+            Number(relay.schedule.startMinute) < 0 ||
+            Number(relay.schedule.startMinute) > 59 ||
+            !Number.isFinite(Number(relay.schedule?.durationMinutes)) ||
+            Number(relay.schedule.durationMinutes) <= 0
+          )
+        : (
+            !Array.isArray(relay.schedule?.entries) ||
+            relay.schedule.entries.length === 0 ||
+            relay.schedule.entries.length > 5 ||
+            relay.schedule.entries.some((entry) => (
+              !Number.isFinite(Number(entry?.hour)) ||
+              Number(entry.hour) < 0 ||
+              Number(entry.hour) > 23 ||
+              !Number.isFinite(Number(entry?.minute)) ||
+              Number(entry.minute) < 0 ||
+              Number(entry.minute) > 59 ||
+              !Number.isFinite(Number(entry?.durationSeconds)) ||
+              Number(entry.durationSeconds) <= 0
+            ))
+          )
+    );
 
-    if (hasInvalid) { showToast("Fix invalid values before saving", "error"); return; }
+    if (hasInvalidConditions || scheduleInvalid || (relay.conditions.length === 0 && !scheduleEnabled)) {
+      showToast("Add at least one valid condition or enable a valid schedule before saving", "error");
+      return;
+    }
 
     const buildRelay = (r) => ({
       enabled:    r.enabled,
@@ -660,12 +899,22 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
         value:     c.parameter === "soilStatus" ? String(c.value) : Number(c.value),
       })),
       ...(r.schedule ? {
-        schedule: {
-          enabled: Boolean(r.schedule.enabled),
-          type: "hourly",
-          startMinute: Number(r.schedule.startMinute ?? FAN_SCHEDULE_DEFAULT.startMinute),
-          durationMinutes: Number(r.schedule.durationMinutes ?? FAN_SCHEDULE_DEFAULT.durationMinutes),
-        },
+        schedule: r.schedule.type === "fixed_times"
+          ? {
+              enabled: Boolean(r.schedule.enabled),
+              type: "fixed_times",
+              entries: (Array.isArray(r.schedule.entries) ? r.schedule.entries : []).slice(0, 5).map((entry) => ({
+                hour: Number(entry.hour),
+                minute: Number(entry.minute),
+                durationSeconds: Number(entry.durationSeconds),
+              })),
+            }
+          : {
+              enabled: Boolean(r.schedule.enabled),
+              type: "hourly",
+              startMinute: Number(r.schedule.startMinute ?? FAN_SCHEDULE_DEFAULT.startMinute),
+              durationMinutes: Number(r.schedule.durationMinutes ?? FAN_SCHEDULE_DEFAULT.durationMinutes),
+            },
       } : {}),
     });
 
@@ -829,16 +1078,25 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
                             </Box>
                           </Box>
                           <Box component="td">
-                            {r.conditions?.map((c, i) => (
+                            {r.conditions?.length ? r.conditions.map((c, i) => (
                               <Typography key={i} sx={{ fontSize: "11px !important", color: "rgba(232,245,233,0.5) !important", lineHeight: 1.9 }}>
                                 {c.parameter} {c.operator} {c.value}
                               </Typography>
-                            ))}
-                            {meta.key === "fan" && r.schedule?.enabled && (
+                            )) : (
+                              <Typography sx={{ fontSize: "11px !important", color: "rgba(232,245,233,0.38) !important", lineHeight: 1.9 }}>
+                                schedule only
+                              </Typography>
+                            )}
+                            {r.schedule?.enabled && r.schedule?.type === "hourly" && (
                               <Typography sx={{ fontSize: "11px !important", color: `${meta.color} !important`, lineHeight: 1.9 }}>
                                 hourly @ minute {r.schedule.startMinute} for {r.schedule.durationMinutes}m
                               </Typography>
                             )}
+                            {r.schedule?.enabled && r.schedule?.type === "fixed_times" && r.schedule.entries?.map((entry, idx) => (
+                              <Typography key={`${meta.key}-summary-${idx}`} sx={{ fontSize: "11px !important", color: `${meta.color} !important`, lineHeight: 1.9 }}>
+                                {String(entry.hour).padStart(2, "0")}:{String(entry.minute).padStart(2, "0")} for {entry.durationSeconds}s
+                              </Typography>
+                            ))}
                           </Box>
                         </Box>
                       );
