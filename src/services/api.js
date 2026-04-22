@@ -50,13 +50,14 @@ export async function getSensorHistoryRange(deviceId, { days = 3, limit } = {}) 
   return res.json();
 }
 
-export async function getEvidenceImages(deviceId, { limit = 6, skip = 0 } = {}) {
+export async function getEvidenceImages(deviceId, { limit = 6, skip = 0, category = "chamber" } = {}) {
   const params = new URLSearchParams({
     limit: String(limit),
     skip: String(skip),
+    category,
   });
 
-  const res = await fetch(`${BASE}/images/${deviceId}?${params.toString()}`, {
+  const res = await fetch(`${BASE}/evidence/${deviceId}?${params.toString()}`, {
     headers: getAuthHeaders(),
   });
 
@@ -66,16 +67,25 @@ export async function getEvidenceImages(deviceId, { limit = 6, skip = 0 } = {}) 
   return data;
 }
 
-export function getEvidenceImageUrl(deviceId, imageId) {
+export function getEvidenceImageUrl(deviceId, imageId, category = "chamber") {
   const token = localStorage.getItem("token");
-  const query = token ? `?token=${encodeURIComponent(token)}` : "";
-  return `${API_ORIGIN}/api/images/${deviceId}/${imageId}/file${query}`;
+  const params = new URLSearchParams({ category });
+  if (token) params.set("token", token);
+  return `${API_ORIGIN}/api/evidence/${deviceId}/${imageId}/file?${params.toString()}`;
+}
+
+export function getEvidenceExportUrl(deviceId, category = "chamber") {
+  const token = localStorage.getItem("token");
+  const params = new URLSearchParams({ category });
+  if (token) params.set("token", token);
+  return `${API_ORIGIN}/api/evidence/${deviceId}/export?${params.toString()}`;
 }
 
 export async function uploadEvidenceImage(deviceId, file, options = {}) {
   return new Promise((resolve, reject) => {
     const formData = new FormData();
     formData.append("image", file);
+    formData.append("category", options.category || "chamber");
     formData.append("attachmentMode", options.attachmentMode || "automatic");
     if (options.selectedDate) {
       formData.append("selectedDate", options.selectedDate);
@@ -84,7 +94,7 @@ export async function uploadEvidenceImage(deviceId, file, options = {}) {
     const token = localStorage.getItem("token");
     const xhr = new XMLHttpRequest();
 
-    xhr.open("POST", `${BASE}/images/${deviceId}`);
+    xhr.open("POST", `${BASE}/evidence/${deviceId}`);
 
     if (token) {
       xhr.setRequestHeader("Authorization", `Bearer ${token}`);
@@ -109,8 +119,9 @@ export async function uploadEvidenceImage(deviceId, file, options = {}) {
   });
 }
 
-export async function deleteEvidenceImage(deviceId, imageId) {
-  const res = await fetch(`${BASE}/images/${deviceId}/${imageId}`, {
+export async function deleteEvidenceImage(deviceId, imageId, { category = "chamber" } = {}) {
+  const params = new URLSearchParams({ category });
+  const res = await fetch(`${BASE}/evidence/${deviceId}/${imageId}?${params.toString()}`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
@@ -149,15 +160,63 @@ export async function getConfig(deviceId) {
   return res.json();
 }
 
-export async function saveConfig(deviceId, relays) {
+export async function saveConfig(deviceId, relays, options = {}) {
   const res = await fetch(`${BASE}/config/${deviceId}`, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ relays }),
+    body: JSON.stringify({
+      relays,
+      profileId: options.profileId || "",
+      profileName: options.profileName || "",
+    }),
   });
   if (res.status === 401) throw new Error("Unauthorized - please login again");
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Failed to save config");
+  return data;
+}
+
+export async function getChamberProfiles() {
+  const res = await fetch(`${BASE}/chamber-profiles`, {
+    headers: getAuthHeaders(),
+  });
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  if (!res.ok) throw new Error("Failed to fetch chamber profiles");
+  return res.json();
+}
+
+export async function createChamberProfile(profile) {
+  const res = await fetch(`${BASE}/chamber-profiles`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(profile),
+  });
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to create chamber profile");
+  return data.profile;
+}
+
+export async function updateChamberProfile(profileId, updates) {
+  const res = await fetch(`${BASE}/chamber-profiles/${profileId}`, {
+    method: "PATCH",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(updates),
+  });
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to update chamber profile");
+  return data.profile;
+}
+
+export async function deleteChamberProfile(profileId) {
+  const res = await fetch(`${BASE}/chamber-profiles/${profileId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (res.status === 401) throw new Error("Unauthorized - please login again");
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to delete chamber profile");
   return data;
 }
 

@@ -41,8 +41,9 @@ const CHART_META = [
 const NAV_TABS = [
   { key:"dashboard",  label:"Dashboard",        icon:"📊" },
   { key:"history",    label:"History",          icon:"🕘" },
+  { key:"evidence",   label:"Evidence",         icon:"🖼️" },
   { key:"users",      label:"Users",            icon:"👥", adminOnly: true },
-  { key:"config",     label:"Device Config",    icon:"⚙️" },
+  { key:"config",     label:"Chamber Profiles", icon:"⚙️" },
   { key:"firmware",   label:"Firmware Update",  icon:"📦", adminOnly: true },
 ];
 
@@ -275,6 +276,11 @@ const menuPaperSx = {
 function handleNavAction(tabKey, navigate, setActiveTab) {
   if (tabKey === "history") {
     navigate("/history");
+    return;
+  }
+
+  if (tabKey === "evidence") {
+    navigate("/evidence");
     return;
   }
 
@@ -1061,9 +1067,13 @@ export default function Dashboard() {
                           sx={{ fontSize:12,color:"#38bdf8",border:"1px solid rgba(56,189,248,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap","&:hover":{ background:"rgba(56,189,248,0.06)" } }}>
                           🕘 History
                         </Button>
+                        <Button onClick={() => navigate("/evidence")}
+                          sx={{ fontSize:12,color:"#93c5fd",border:"1px solid rgba(147,197,253,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap","&:hover":{ background:"rgba(147,197,253,0.06)" } }}>
+                          🖼️ Evidence
+                        </Button>
                         <Button onClick={() => setActiveTab("config")}
                           sx={{ fontSize:12,color:"#fbbf24",border:"1px solid rgba(251,191,36,0.2)",borderRadius:"8px",px:2,py:0.8,whiteSpace:"nowrap","&:hover":{ background:"rgba(251,191,36,0.06)" } }}>
-                          ⚙️ Config
+                          ⚙️ Profiles
                         </Button>
                       </Box>
                     </Box>

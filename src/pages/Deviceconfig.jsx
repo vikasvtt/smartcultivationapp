@@ -6,10 +6,17 @@ import {
   Snackbar, Divider, IconButton, Tooltip,
 } from "@mui/material";
 import { motion } from "framer-motion";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getConfig, saveConfig } from "../services/api";
+import {
+  createChamberProfile,
+  deleteChamberProfile,
+  getChamberProfiles,
+  getConfig,
+  saveConfig,
+  updateChamberProfile,
+} from "../services/api";
 
 // ─────────────────────────────────────────────────────────────────────
 // Constants
@@ -797,20 +804,66 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
   const navigate  = useNavigate();
   const deviceId  = propDeviceId || user?.deviceId;
 
-  const initialRelays = {
+  const initialRelays = useMemo(() => ({
     fan:   makeDefaultRelay("fan"),
     motor: makeDefaultRelay("motor"),
     light: makeDefaultRelay("light"),
-  };
+  }), []);
 
   const [relays, setRelays]         = useState(initialRelays);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState({ fan: false, motor: false, light: false });
   const [lastSaved, setLastSaved]   = useState({ fan: null,  motor: null,  light: null  });
   const [fetchError, setFetchError] = useState("");
+  const [profiles, setProfiles]     = useState([]);
+  const [profilesLoading, setProfilesLoading] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileDescription, setProfileDescription] = useState("");
   const [toast, setToast]           = useState({ open: false, message: "", severity: "success" });
 
   const showToast = (msg, sev = "success") => setToast({ open: true, message: msg, severity: sev });
+
+  const normaliseRelaysObject = useCallback((rawRelays = {}) => ({
+    fan: normaliseRelay(rawRelays.fan, "fan"),
+    motor: normaliseRelay(rawRelays.motor, "motor"),
+    light: normaliseRelay(rawRelays.light, "light"),
+  }), []);
+
+  const buildRelayPayload = useCallback((r) => ({
+    enabled:    r.enabled,
+    logic:      r.logic || "AND",
+    conditions: r.conditions.map((c) => ({
+      parameter: c.parameter,
+      operator:  c.operator,
+      value:     c.parameter === "soilStatus" ? String(c.value) : Number(c.value),
+    })),
+    ...(r.schedule ? {
+      schedule: r.schedule.type === "fixed_times"
+        ? {
+            enabled: Boolean(r.schedule.enabled),
+            type: "fixed_times",
+            entries: (Array.isArray(r.schedule.entries) ? r.schedule.entries : []).slice(0, 5).map((entry) => ({
+              hour: Number(entry.hour),
+              minute: Number(entry.minute),
+              durationSeconds: Number(entry.durationSeconds),
+            })),
+          }
+        : {
+            enabled: Boolean(r.schedule.enabled),
+            type: "hourly",
+            startMinute: Number(r.schedule.startMinute ?? FAN_SCHEDULE_DEFAULT.startMinute),
+            durationMinutes: Number(r.schedule.durationMinutes ?? FAN_SCHEDULE_DEFAULT.durationMinutes),
+          },
+    } : {}),
+  }), []);
+
+  const buildConfigPayload = useCallback((sourceRelays) => ({
+    fan: buildRelayPayload(sourceRelays.fan),
+    motor: buildRelayPayload(sourceRelays.motor),
+    light: buildRelayPayload(sourceRelays.light),
+  }), [buildRelayPayload]);
 
   // ── Fetch config from MongoDB ──────────────────────────────────────
   const fetchConfig = useCallback(async () => {
@@ -820,16 +873,9 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
     try {
       const config = await getConfig(deviceId);
 
-      // config.relays may be absent (device not yet configured)
-      const rawRelays = config?.relays ?? {};
-
-      const normalised = {
-        fan:   normaliseRelay(rawRelays.fan,   "fan"),
-        motor: normaliseRelay(rawRelays.motor, "motor"),
-        light: normaliseRelay(rawRelays.light, "light"),
-      };
-
-      setRelays(normalised);
+      setRelays(normaliseRelaysObject(config?.relays ?? {}));
+      setSelectedProfileId(config?.profileId || "");
+      setProfileName(config?.profileName || "");
     } catch (err) {
       console.error("[DeviceConfig] fetch error:", err);
       setFetchError(err.message || "Failed to load configuration — showing defaults");
@@ -838,12 +884,25 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
     } finally {
       setLoading(false);
     }
-  }, [deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deviceId, initialRelays, normaliseRelaysObject]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchProfiles = useCallback(async () => {
+    try {
+      setProfilesLoading(true);
+      const data = await getChamberProfiles();
+      setProfiles(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showToast(err.message || "Failed to load chamber profiles", "error");
+    } finally {
+      setProfilesLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
     fetchConfig();
-  }, [user, fetchConfig, navigate]);
+    fetchProfiles();
+  }, [user, fetchConfig, fetchProfiles, navigate]);
 
   // ── Relay change handler ───────────────────────────────────────────
   const handleRelayChange = useCallback((key, updated) => {
@@ -891,44 +950,14 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
       return;
     }
 
-    const buildRelay = (r) => ({
-      enabled:    r.enabled,
-      logic:      r.logic || "AND",
-      conditions: r.conditions.map((c) => ({
-        parameter: c.parameter,
-        operator:  c.operator,
-        value:     c.parameter === "soilStatus" ? String(c.value) : Number(c.value),
-      })),
-      ...(r.schedule ? {
-        schedule: r.schedule.type === "fixed_times"
-          ? {
-              enabled: Boolean(r.schedule.enabled),
-              type: "fixed_times",
-              entries: (Array.isArray(r.schedule.entries) ? r.schedule.entries : []).slice(0, 5).map((entry) => ({
-                hour: Number(entry.hour),
-                minute: Number(entry.minute),
-                durationSeconds: Number(entry.durationSeconds),
-              })),
-            }
-          : {
-              enabled: Boolean(r.schedule.enabled),
-              type: "hourly",
-              startMinute: Number(r.schedule.startMinute ?? FAN_SCHEDULE_DEFAULT.startMinute),
-              durationMinutes: Number(r.schedule.durationMinutes ?? FAN_SCHEDULE_DEFAULT.durationMinutes),
-            },
-      } : {}),
-    });
-
-    // Send ALL relays so the saved document is always complete
-    const payload = {
-      fan:   buildRelay(relays.fan),
-      motor: buildRelay(relays.motor),
-      light: buildRelay(relays.light),
-    };
+    const payload = buildConfigPayload(relays);
 
     setSaving((p) => ({ ...p, [relayKey]: true }));
     try {
-      await saveConfig(deviceId, payload);
+      await saveConfig(deviceId, payload, {
+        profileId: selectedProfileId,
+        profileName: profileName || "",
+      });
       const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       setLastSaved((p) => ({ ...p, [relayKey]: time }));
       showToast(`${relayKey.charAt(0).toUpperCase() + relayKey.slice(1)} saved!`);
@@ -937,10 +966,25 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
     } finally {
       setSaving((p) => ({ ...p, [relayKey]: false }));
     }
-  }, [relays, deviceId]);
+  }, [buildConfigPayload, deviceId, profileName, relays, selectedProfileId]);
 
   const handleSaveAll = async () => {
-    for (const key of ["fan", "motor", "light"]) await handleSave(key);
+    const payload = buildConfigPayload(relays);
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    setSaving({ fan: true, motor: true, light: true });
+    try {
+      await saveConfig(deviceId, payload, {
+        profileId: selectedProfileId,
+        profileName: profileName || "",
+      });
+      setLastSaved({ fan: time, motor: time, light: time });
+      showToast("Working configuration saved to chamber");
+    } catch (err) {
+      showToast(err.message || "Failed to save chamber configuration", "error");
+    } finally {
+      setSaving({ fan: false, motor: false, light: false });
+    }
   };
 
   const handleReset = () => {
@@ -948,6 +992,123 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
     setLastSaved({ fan: null, motor: null, light: null });
     showToast("Reset to defaults — click Save to apply", "info");
   };
+
+  const loadProfileIntoEditor = useCallback((profile) => {
+    setSelectedProfileId(profile._id);
+    setProfileName(profile.name || "");
+    setProfileDescription(profile.description || "");
+    setRelays(normaliseRelaysObject(profile.relays || {}));
+    setLastSaved({ fan: null, motor: null, light: null });
+    showToast(`Loaded profile: ${profile.name}`);
+  }, [normaliseRelaysObject]);
+
+  const handleCreateProfile = useCallback(async () => {
+    if (!profileName.trim()) {
+      showToast("Enter a profile name before saving", "error");
+      return;
+    }
+
+    try {
+      setProfileBusy(true);
+      const profile = await createChamberProfile({
+        name: profileName.trim(),
+        description: profileDescription.trim(),
+        relays: buildConfigPayload(relays),
+      });
+      setSelectedProfileId(profile._id);
+      setProfiles((prev) => [profile, ...prev.filter((item) => item._id !== profile._id)]);
+      showToast("Chamber profile created");
+    } catch (err) {
+      showToast(err.message || "Failed to create profile", "error");
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [buildConfigPayload, profileDescription, profileName, relays]);
+
+  const handleUpdateProfile = useCallback(async () => {
+    if (!selectedProfileId) {
+      showToast("Select a profile first", "error");
+      return;
+    }
+
+    if (!profileName.trim()) {
+      showToast("Profile name cannot be empty", "error");
+      return;
+    }
+
+    try {
+      setProfileBusy(true);
+      const profile = await updateChamberProfile(selectedProfileId, {
+        name: profileName.trim(),
+        description: profileDescription.trim(),
+        relays: buildConfigPayload(relays),
+      });
+      setProfiles((prev) => prev.map((item) => (item._id === profile._id ? profile : item)));
+      showToast("Chamber profile updated");
+    } catch (err) {
+      showToast(err.message || "Failed to update profile", "error");
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [buildConfigPayload, profileDescription, profileName, relays, selectedProfileId]);
+
+  const handleDeleteProfile = useCallback(async () => {
+    if (!selectedProfileId) {
+      showToast("Select a profile first", "error");
+      return;
+    }
+
+    try {
+      setProfileBusy(true);
+      await deleteChamberProfile(selectedProfileId);
+      setProfiles((prev) => prev.filter((item) => item._id !== selectedProfileId));
+      setSelectedProfileId("");
+      setProfileName("");
+      setProfileDescription("");
+      showToast("Chamber profile deleted");
+    } catch (err) {
+      showToast(err.message || "Failed to delete profile", "error");
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [selectedProfileId]);
+
+  const handleApplyProfileToChamber = useCallback(async () => {
+    if (!deviceId) {
+      showToast("No chamber selected", "error");
+      return;
+    }
+
+    if (!selectedProfileId) {
+      showToast("Select a profile first", "error");
+      return;
+    }
+
+    try {
+      setProfileBusy(true);
+      const payload = buildConfigPayload(relays);
+      await saveConfig(deviceId, payload, {
+        profileId: selectedProfileId,
+        profileName: profileName || "",
+      });
+      const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      setLastSaved({ fan: time, motor: time, light: time });
+      showToast(`Profile applied to ${deviceId}`);
+    } catch (err) {
+      showToast(err.message || "Failed to apply profile", "error");
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [buildConfigPayload, deviceId, profileName, relays, selectedProfileId]);
+
+  const handleNewProfileDraft = useCallback(() => {
+    setSelectedProfileId("");
+    setProfileName("");
+    setProfileDescription("");
+    setRelays(initialRelays);
+    setLastSaved({ fan: null, motor: null, light: null });
+    showToast("Started a new blank profile draft", "info");
+  }, [initialRelays]);
 
   if (!user) return null;
 
@@ -966,7 +1127,7 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2 }}>
           <Box>
             <Typography sx={{ fontFamily: "'Cormorant Garamond', serif", fontSize: { xs: "1.6rem", md: "2rem" }, fontWeight: 300, color: "#e8f5e9", lineHeight: 1.1 }}>
-              Device Configuration
+              Chamber Profiles
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5, flexWrap: "wrap" }}>
               <Typography sx={{ fontSize: 12, color: "#4ade80", fontFamily: "'JetBrains Mono',monospace" }}>
@@ -974,7 +1135,7 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
               </Typography>
               <Typography sx={{ fontSize: 12, color: "rgba(232,245,233,0.2)" }}>·</Typography>
               <Typography sx={{ fontSize: 12, color: "rgba(232,245,233,0.38)", fontFamily: "'JetBrains Mono',monospace" }}>
-                Multi-condition relay control
+                Profile-driven relay control
               </Typography>
             </Box>
           </Box>
@@ -1019,6 +1180,124 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
             </Typography>
           </Box>
 
+          <Box sx={{ mb: 4, borderRadius: "16px", border: "1px solid rgba(74,222,128,0.1)", background: "rgba(8,15,10,0.6)", overflow: "hidden" }}>
+            <Box sx={{ px: 3, py: 2.2, borderBottom: "1px solid rgba(74,222,128,0.08)", display: "flex", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
+              <Box>
+                <Typography sx={{ fontSize: 14, fontWeight: 500, color: "#e8f5e9" }}>Profile Library</Typography>
+                <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.35)", fontFamily: "'JetBrains Mono',monospace" }}>
+                  Save complete relay setups and re-apply them to {deviceId || "your chamber"}.
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                <Button onClick={fetchProfiles} size="small"
+                  sx={{ fontSize: 11, color: "#4ade80", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "8px", px: 1.5, py: 0.6, fontFamily: "'JetBrains Mono',monospace" }}>
+                  Reload Profiles
+                </Button>
+                <Button onClick={fetchConfig} size="small"
+                  sx={{ fontSize: 11, color: "#38bdf8", border: "1px solid rgba(56,189,248,0.2)", borderRadius: "8px", px: 1.5, py: 0.6, fontFamily: "'JetBrains Mono',monospace" }}>
+                  Load Chamber Config
+                </Button>
+              </Box>
+            </Box>
+
+            <Box sx={{ p: 3, display: "grid", gridTemplateColumns: { xs: "1fr", lg: "340px 1fr" }, gap: 2.5 }}>
+              <Box sx={{ display: "grid", gap: 1.5, alignContent: "start" }}>
+                <TextField
+                  label="Profile Name"
+                  value={profileName}
+                  onChange={(event) => setProfileName(event.target.value)}
+                  sx={textFieldSx("#4ade80")}
+                />
+                <TextField
+                  label="Description"
+                  value={profileDescription}
+                  onChange={(event) => setProfileDescription(event.target.value)}
+                  multiline
+                  minRows={3}
+                  sx={textFieldSx("#38bdf8")}
+                />
+                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Button onClick={handleNewProfileDraft} size="small"
+                    sx={{ fontSize: 11, color: "rgba(232,245,233,0.7)", border: "1px solid rgba(232,245,233,0.14)", borderRadius: "8px", px: 1.5, py: 0.8, fontFamily: "'JetBrains Mono',monospace" }}>
+                    New Draft
+                  </Button>
+                  <Button onClick={handleCreateProfile} disabled={profileBusy} size="small"
+                    sx={{ fontSize: 11, color: "#4ade80", border: "1px solid rgba(74,222,128,0.24)", borderRadius: "8px", px: 1.5, py: 0.8, fontFamily: "'JetBrains Mono',monospace", background: "rgba(74,222,128,0.06)" }}>
+                    Save as Profile
+                  </Button>
+                  <Button onClick={handleUpdateProfile} disabled={!selectedProfileId || profileBusy} size="small"
+                    sx={{ fontSize: 11, color: "#38bdf8", border: "1px solid rgba(56,189,248,0.24)", borderRadius: "8px", px: 1.5, py: 0.8, fontFamily: "'JetBrains Mono',monospace" }}>
+                    Update Profile
+                  </Button>
+                  <Button onClick={handleDeleteProfile} disabled={!selectedProfileId || profileBusy} size="small"
+                    sx={{ fontSize: 11, color: "#f87171", border: "1px solid rgba(248,113,113,0.24)", borderRadius: "8px", px: 1.5, py: 0.8, fontFamily: "'JetBrains Mono',monospace" }}>
+                    Delete Profile
+                  </Button>
+                </Box>
+                <Button onClick={handleApplyProfileToChamber} disabled={!selectedProfileId || profileBusy || !deviceId}
+                  sx={{ mt: 0.5, fontSize: 11, color: "#020c04", background: "linear-gradient(135deg,#4ade80,#86efac)", borderRadius: "10px", px: 2, py: 1, fontFamily: "'JetBrains Mono',monospace" }}>
+                  Apply Selected Profile to {deviceId || "Chamber"}
+                </Button>
+              </Box>
+
+              <Box sx={{ borderRadius: "14px", border: "1px solid rgba(74,222,128,0.08)", background: "rgba(4,13,8,0.35)", minHeight: 220, p: 2 }}>
+                {profilesLoading ? (
+                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", py: 6, flexDirection: "column", gap: 1.5 }}>
+                    <CircularProgress size={24} sx={{ color: "#4ade80" }} />
+                    <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.35)", fontFamily: "'JetBrains Mono',monospace" }}>
+                      Loading chamber profiles...
+                    </Typography>
+                  </Box>
+                ) : profiles.length === 0 ? (
+                  <Box sx={{ py: 5, textAlign: "center" }}>
+                    <Typography sx={{ fontSize: 12, color: "rgba(232,245,233,0.38)", fontFamily: "'JetBrains Mono',monospace" }}>
+                      No profiles saved yet. Build a working config below and save it as your first profile.
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: "grid", gap: 1.2 }}>
+                    {profiles.map((profile) => (
+                      <Box key={profile._id}
+                        sx={{
+                          p: 1.7,
+                          borderRadius: "12px",
+                          border: `1px solid ${selectedProfileId === profile._id ? "rgba(74,222,128,0.3)" : "rgba(74,222,128,0.08)"}`,
+                          background: selectedProfileId === profile._id ? "rgba(74,222,128,0.08)" : "rgba(8,15,10,0.55)",
+                        }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, alignItems: "flex-start", mb: 0.7 }}>
+                          <Box>
+                            <Typography sx={{ fontSize: 13, color: "#e8f5e9", fontWeight: 500 }}>
+                              {profile.name}
+                            </Typography>
+                            <Typography sx={{ fontSize: 10, color: "rgba(232,245,233,0.34)", fontFamily: "'JetBrains Mono',monospace" }}>
+                              Updated {new Date(profile.updatedAt || profile.createdAt || Date.now()).toLocaleString()}
+                            </Typography>
+                          </Box>
+                          {selectedProfileId === profile._id && (
+                            <Box sx={{ px: 1, py: 0.3, borderRadius: "999px", background: "rgba(74,222,128,0.12)", border: "1px solid rgba(74,222,128,0.22)" }}>
+                              <Typography sx={{ fontSize: 10, color: "#4ade80", fontFamily: "'JetBrains Mono',monospace" }}>
+                                ACTIVE
+                              </Typography>
+                            </Box>
+                          )}
+                        </Box>
+                        <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.5)", mb: 1.1, minHeight: 32 }}>
+                          {profile.description || "No description"}
+                        </Typography>
+                        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                          <Button onClick={() => loadProfileIntoEditor(profile)} size="small"
+                            sx={{ fontSize: 10, color: "#4ade80", border: "1px solid rgba(74,222,128,0.18)", borderRadius: "8px", px: 1.2, py: 0.5, fontFamily: "'JetBrains Mono',monospace" }}>
+                            Load to Editor
+                          </Button>
+                        </Box>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </Box>
+
           {/* Relay cards */}
           <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" }, gap: 2.5, mb: 4 }}>
             {RELAY_META.map((meta) => (
@@ -1039,9 +1318,9 @@ export default function DeviceConfig({ deviceId: propDeviceId, onBack }) {
             <Box sx={{ borderRadius: "14px", border: "1px solid rgba(74,222,128,0.1)", background: "rgba(8,15,10,0.6)", overflow: "hidden" }}>
               <Box sx={{ px: 3, py: 2, borderBottom: "1px solid rgba(74,222,128,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
                 <Box>
-                  <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#e8f5e9" }}>Configuration Summary</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#e8f5e9" }}>Working Configuration Summary</Typography>
                   <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.3)", fontFamily: "'JetBrains Mono',monospace" }}>
-                    Live view of current relay logic for {deviceId}
+                    Live view of the configuration currently loaded in the editor for {deviceId}
                   </Typography>
                 </Box>
                 <Button onClick={fetchConfig} size="small"

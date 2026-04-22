@@ -102,6 +102,8 @@ const configSchema = new mongoose.Schema(
     deviceId: String,
     relays: Object,
     firmware: Object,
+    profileId: String,
+    profileName: String,
   },
   {
     collection: "configs", // 🔥 FORCE CORRECT COLLECTION
@@ -109,6 +111,22 @@ const configSchema = new mongoose.Schema(
 );
 
 const Config = mongoose.model("Config", configSchema);
+
+const chamberProfileSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    description: { type: String, default: "" },
+    relays: { type: Object, default: {} },
+    createdBy: { type: String, default: "" },
+    updatedBy: { type: String, default: "" },
+  },
+  {
+    collection: "chamberprofiles",
+    timestamps: true,
+  }
+);
+
+const ChamberProfile = mongoose.model("ChamberProfile", chamberProfileSchema);
 
 const imageSchema = new mongoose.Schema(
   {
@@ -129,6 +147,26 @@ const imageSchema = new mongoose.Schema(
 imageSchema.index({ deviceId: 1, uploadedAt: -1 });
 
 const ImageRecord = mongoose.model("ImageRecord", imageSchema);
+
+const outerEnvironmentImageSchema = new mongoose.Schema(
+  {
+    deviceId: String,
+    fileName: String,
+    contentType: String,
+    imageData: Buffer,
+    uploadedAt: { type: Date, default: Date.now },
+    attachmentMode: { type: String, default: "automatic" },
+    selectedDate: { type: String, default: "" },
+    telemetry: { type: Object, default: null },
+  },
+  {
+    collection: "outerenvironmentimages",
+  }
+);
+
+outerEnvironmentImageSchema.index({ deviceId: 1, uploadedAt: -1 });
+
+const OuterEnvironmentImageRecord = mongoose.model("OuterEnvironmentImageRecord", outerEnvironmentImageSchema);
 
 function sanitizeUser(userDoc) {
   if (!userDoc) return null;
@@ -315,6 +353,95 @@ app.patch("/api/admin/users/:id", auth, async (req, res) => {
   }
 });
 
+app.get("/api/chamber-profiles", auth, async (req, res) => {
+  try {
+    const profiles = await ChamberProfile.find({}).sort({ updatedAt: -1, name: 1 }).lean();
+    res.json(profiles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/chamber-profiles", auth, async (req, res) => {
+  try {
+    const { name, description = "", relays } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: "Profile name is required" });
+    }
+
+    if (!relays || typeof relays !== "object") {
+      return res.status(400).json({ error: "Profile relays are required" });
+    }
+
+    const profile = await ChamberProfile.create({
+      name: String(name).trim(),
+      description: String(description || "").trim(),
+      relays,
+      createdBy: req.user.id,
+      updatedBy: req.user.id,
+    });
+
+    res.status(201).json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/chamber-profiles/:id", auth, async (req, res) => {
+  try {
+    const updates = {};
+
+    if (req.body.name !== undefined) {
+      if (!String(req.body.name).trim()) {
+        return res.status(400).json({ error: "Profile name is required" });
+      }
+      updates.name = String(req.body.name).trim();
+    }
+
+    if (req.body.description !== undefined) {
+      updates.description = String(req.body.description || "").trim();
+    }
+
+    if (req.body.relays !== undefined) {
+      if (!req.body.relays || typeof req.body.relays !== "object") {
+        return res.status(400).json({ error: "Profile relays are required" });
+      }
+      updates.relays = req.body.relays;
+    }
+
+    updates.updatedBy = req.user.id;
+
+    const profile = await ChamberProfile.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true }
+    );
+
+    if (!profile) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    res.json({ success: true, profile });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/chamber-profiles/:id", auth, async (req, res) => {
+  try {
+    const deleted = await ChamberProfile.findByIdAndDelete(req.params.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Profile not found" });
+    }
+
+    res.json({ success: true, profileId: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════════
 // SENSOR ROUTES (RESTORED)
 // ════════════════════════════════════════════════════════════════════
@@ -399,7 +526,7 @@ app.get("/api/config/:deviceId", async (req, res) => {
 app.post("/api/config/:deviceId", auth, async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const { relays } = req.body;
+    const { relays, profileId = "", profileName = "" } = req.body;
 
     if (!relays || typeof relays !== "object") {
       return res.status(400).json({ error: "Invalid config: relays required" });
@@ -410,6 +537,8 @@ app.post("/api/config/:deviceId", auth, async (req, res) => {
       {
         deviceId,
         relays,
+        profileId: profileId || "",
+        profileName: profileName || "",
         updatedAt: new Date(),
       },
       { upsert: true, new: true }
@@ -429,18 +558,108 @@ app.post("/api/config/:deviceId", auth, async (req, res) => {
 // FIRMWARE
 // ════════════════════════════════════════════════════════════════════
 
-function buildImageResponse(doc) {
+const EVIDENCE_MODELS = {
+  chamber: ImageRecord,
+  outer: OuterEnvironmentImageRecord,
+};
+
+function getEvidenceCategory(value) {
+  return value === "outer" ? "outer" : "chamber";
+}
+
+function getEvidenceModel(category) {
+  return EVIDENCE_MODELS[getEvidenceCategory(category)];
+}
+
+function buildImageResponse(doc, category = "chamber") {
   return {
     _id: doc._id,
     deviceId: doc.deviceId,
+    category: getEvidenceCategory(category),
     fileName: doc.fileName,
     contentType: doc.contentType,
     uploadedAt: doc.uploadedAt,
     attachmentMode: doc.attachmentMode || "automatic",
     selectedDate: doc.selectedDate || "",
     telemetry: doc.telemetry || null,
-    imagePath: `/api/images/${doc.deviceId}/${doc._id}/file`,
+    imagePath: `/api/evidence/${doc.deviceId}/${doc._id}/file?category=${getEvidenceCategory(category)}`,
   };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatTelemetryValue(value) {
+  return value === null || value === undefined || value === "" ? "—" : String(value);
+}
+
+function buildEvidenceExportHtml({ category, deviceId, items }) {
+  const title = `${deviceId} ${category === "outer" ? "Outer Environment" : "Chamber"} Evidence Report`;
+  const cards = items.map((item) => {
+    const imageSrc = item.imageData
+      ? `data:${item.contentType || "image/jpeg"};base64,${item.imageData.toString("base64")}`
+      : "";
+    const telemetry = item.telemetry || {};
+
+    return `
+      <section class="card">
+        <div class="hero">
+          ${imageSrc ? `<img src="${imageSrc}" alt="${escapeHtml(item.fileName || "Evidence image")}" />` : `<div class="empty">No image data</div>`}
+        </div>
+        <div class="content">
+          <h2>${escapeHtml(item.fileName || "Evidence image")}</h2>
+          <p class="meta"><strong>Uploaded:</strong> ${escapeHtml(new Date(item.uploadedAt).toLocaleString())}</p>
+          <p class="meta"><strong>Attachment mode:</strong> ${escapeHtml(item.attachmentMode || "automatic")}${item.selectedDate ? ` (${escapeHtml(item.selectedDate)})` : ""}</p>
+          <p class="meta"><strong>Matched telemetry time:</strong> ${telemetry.time ? escapeHtml(new Date(telemetry.time).toLocaleString()) : "No telemetry matched"}</p>
+          <table>
+            <tbody>
+              <tr><th>Temperature</th><td>${escapeHtml(formatTelemetryValue(telemetry.temperature))}</td></tr>
+              <tr><th>Humidity</th><td>${escapeHtml(formatTelemetryValue(telemetry.humidity))}</td></tr>
+              <tr><th>Soil</th><td>${escapeHtml(formatTelemetryValue(telemetry.soil))}</td></tr>
+              <tr><th>Soil Status</th><td>${escapeHtml(formatTelemetryValue(telemetry.soilStatus))}</td></tr>
+              <tr><th>Light</th><td>${escapeHtml(formatTelemetryValue(telemetry.light))}</td></tr>
+              <tr><th>Fan</th><td>${escapeHtml(formatTelemetryValue(telemetry.fan))}</td></tr>
+              <tr><th>Motor</th><td>${escapeHtml(formatTelemetryValue(telemetry.motor))}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #07110a; color: #e8f5e9; margin: 0; padding: 32px; }
+      h1 { margin: 0 0 8px; font-size: 30px; }
+      .sub { color: #9db5a2; margin-bottom: 28px; }
+      .card { border: 1px solid rgba(74, 222, 128, 0.18); border-radius: 20px; overflow: hidden; margin-bottom: 24px; background: #0b1710; }
+      .hero { background: #050b07; padding: 18px; text-align: center; }
+      .hero img { max-width: 100%; max-height: 420px; border-radius: 14px; }
+      .empty { padding: 48px 16px; color: #9db5a2; }
+      .content { padding: 22px; }
+      .meta { margin: 6px 0; color: #cde7d2; }
+      table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+      th, td { border: 1px solid rgba(74, 222, 128, 0.12); padding: 10px 12px; text-align: left; }
+      th { width: 180px; color: #8fe6ad; background: rgba(74, 222, 128, 0.06); }
+      td { color: #e8f5e9; }
+    </style>
+  </head>
+  <body>
+    <h1>${escapeHtml(title)}</h1>
+    <div class="sub">${escapeHtml(String(items.length))} evidence item(s) exported on ${escapeHtml(new Date().toLocaleString())}</div>
+    ${cards || "<p>No evidence items found.</p>"}
+  </body>
+</html>`;
 }
 
 async function findNearestTelemetry(deviceId, targetTime) {
@@ -515,12 +734,152 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION,
 });
 
-app.get("/api/images/:deviceId", auth, async (req, res) => {
+app.get("/api/evidence/:deviceId", auth, async (req, res) => {
   try {
+    const category = getEvidenceCategory(req.query.category);
+    const EvidenceModel = getEvidenceModel(category);
     const limit = Math.min(
       30,
       Math.max(1, Number.parseInt(req.query.limit, 10) || 6)
     );
+    const skip = Math.max(0, Number.parseInt(req.query.skip, 10) || 0);
+    const query = { deviceId: req.params.deviceId };
+
+    const [images, total] = await Promise.all([
+      EvidenceModel.find(query)
+        .select("_id deviceId fileName contentType uploadedAt attachmentMode selectedDate telemetry")
+        .sort({ uploadedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .allowDiskUse(true)
+        .lean(),
+      EvidenceModel.countDocuments(query),
+    ]);
+
+    res.json({
+      items: images.map((image) => buildImageResponse(image, category)),
+      total,
+      hasMore: skip + images.length < total,
+      nextSkip: skip + images.length,
+      category,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/evidence/:deviceId/export", auth, async (req, res) => {
+  try {
+    const category = getEvidenceCategory(req.query.category);
+    const EvidenceModel = getEvidenceModel(category);
+    const items = await EvidenceModel.find({ deviceId: req.params.deviceId })
+      .select("deviceId fileName contentType imageData uploadedAt attachmentMode selectedDate telemetry")
+      .sort({ uploadedAt: -1 })
+      .allowDiskUse(true);
+
+    const html = buildEvidenceExportHtml({
+      category,
+      deviceId: req.params.deviceId,
+      items,
+    });
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${req.params.deviceId}-${category}-evidence-report.html"`
+    );
+    res.send(html);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/evidence/:deviceId/:imageId/file", auth, async (req, res) => {
+  try {
+    const category = getEvidenceCategory(req.query.category);
+    const EvidenceModel = getEvidenceModel(category);
+    const image = await EvidenceModel.findOne({
+      _id: req.params.imageId,
+      deviceId: req.params.deviceId,
+    }).select("fileName contentType imageData");
+
+    if (!image || !image.imageData) {
+      return res.status(404).json({ error: "Evidence image not found" });
+    }
+
+    res.setHeader("Content-Type", image.contentType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${image.fileName || "evidence-image"}"`);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.send(image.imageData);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/evidence/:deviceId", auth, imageUpload.single("image"), async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const category = getEvidenceCategory(req.body.category);
+    const EvidenceModel = getEvidenceModel(category);
+    const attachmentMode = req.body.attachmentMode === "custom" ? "custom" : "automatic";
+    const selectedDate = req.body.selectedDate || "";
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No image uploaded" });
+    }
+
+    if (!req.file.mimetype?.startsWith("image/")) {
+      return res.status(400).json({ error: "Only image uploads are allowed" });
+    }
+
+    const uploadedAt = new Date();
+    const telemetry = attachmentMode === "custom"
+      ? await findNearestTelemetryForSelectedDate(deviceId, selectedDate, uploadedAt)
+      : await findNearestTelemetry(deviceId, uploadedAt);
+
+    const imageRecord = await EvidenceModel.create({
+      deviceId,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      imageData: req.file.buffer,
+      uploadedAt,
+      attachmentMode,
+      selectedDate,
+      telemetry,
+    });
+
+    res.json({
+      success: true,
+      image: buildImageResponse(imageRecord, category),
+    });
+  } catch (err) {
+    console.error("Image upload error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/evidence/:deviceId/:imageId", auth, async (req, res) => {
+  try {
+    const category = getEvidenceCategory(req.query.category);
+    const EvidenceModel = getEvidenceModel(category);
+    const deleted = await EvidenceModel.findOneAndDelete({
+      _id: req.params.imageId,
+      deviceId: req.params.deviceId,
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Evidence image not found" });
+    }
+
+    res.json({ success: true, imageId: req.params.imageId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/images/:deviceId", auth, async (req, res) => {
+  try {
+    const limit = Math.min(30, Math.max(1, Number.parseInt(req.query.limit, 10) || 6));
     const skip = Math.max(0, Number.parseInt(req.query.skip, 10) || 0);
     const query = { deviceId: req.params.deviceId };
 
@@ -536,10 +895,11 @@ app.get("/api/images/:deviceId", auth, async (req, res) => {
     ]);
 
     res.json({
-      items: images.map(buildImageResponse),
+      items: images.map((image) => buildImageResponse(image, "chamber")),
       total,
       hasMore: skip + images.length < total,
       nextSkip: skip + images.length,
+      category: "chamber",
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -598,10 +958,9 @@ app.post("/api/images/:deviceId", auth, imageUpload.single("image"), async (req,
 
     res.json({
       success: true,
-      image: buildImageResponse(imageRecord),
+      image: buildImageResponse(imageRecord, "chamber"),
     });
   } catch (err) {
-    console.error("Image upload error:", err);
     res.status(500).json({ error: err.message });
   }
 });

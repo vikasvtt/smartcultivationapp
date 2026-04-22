@@ -6,6 +6,7 @@ import Signup from "../pages/Signup";
 import Dashboard from "../pages/Dashboard";
 import DeviceConfig from "../pages/Deviceconfig";
 import History from "../pages/History";
+import Evidence from "../pages/Evidence";
 
 
 // Redirects to /login if user is not logged in
@@ -26,6 +27,9 @@ export default function AppRoutes() {
       } />
       <Route path="/history" element={
         <ProtectedRoute><History /></ProtectedRoute>
+      } />
+      <Route path="/evidence" element={
+        <ProtectedRoute><Evidence /></ProtectedRoute>
       } />
       <Route path="/config" element={
         <ProtectedRoute><DeviceConfig /></ProtectedRoute>
