@@ -1,9 +1,12 @@
-# 🌱 Smart Cultivation System (IoT + MERN)
+# 🌱 Smart Cultivation System — IoT-Based Smart Farming Solution
 
 <p align="center">
   <b>🚀 Real-Time Smart Agriculture Automation using ESP32, MERN & AWS IoT</b><br/>
   <i>Monitor • Automate • Optimize</i>
 </p>
+
+> Developed for Solution Challenge 2026  
+> Lead Developer: Vikas Tirakannanavar
 
 ---
 
@@ -17,86 +20,98 @@
 
 ---
 
+## 🚨 Problem Statement
+
+Traditional farming lacks real-time monitoring and automated environmental control, leading to inefficient resource usage, inconsistent crop growth, and heavy dependency on manual intervention.
+
+---
+
 ## 🚀 Overview
 
-The **Smart Cultivation System** is an end-to-end IoT solution designed to automate agricultural environments using real-time data and rule-based decision making.
+The **Smart Cultivation System** is a low-cost IoT-based solution designed to automate agricultural environments using real-time sensor data and rule-based decision making.
 
-It connects:
+It integrates:
 
-- 🌡️ Sensors (Temperature, Humidity, Soil)
+- 🌡️ Sensors (Temperature, Humidity, Soil Moisture)
 - ⚡ Actuators (Fan, Motor, Light)
 - 📡 ESP32 (Edge Device)
 - ☁️ AWS IoT (Cloud)
-- 🌐 MERN Stack (Dashboard)
+- 🌐 MERN Stack (Web Dashboard)
+
+---
+
+## 🌐 Live Demo
+
+👉 https://growio-eight.vercel.app
 
 ---
 
 ## 🎯 Key Features
 
-### 🧠 Intelligent Automation Engine
-
-- Multi-condition rules
-- AND / OR logic support
-- Dynamic configuration from backend
+### 🧠 Intelligent Automation
+- Multi-condition rules  
+- AND / OR logic support  
+- Dynamic configuration  
 
 ### 📊 Real-Time Monitoring
-
-- Temperature 🌡️
-- Humidity 💧
-- Soil Moisture 🌱
-- Soil Status (DRY / WET)
+- Temperature 🌡️  
+- Humidity 💧  
+- Soil Moisture 🌱  
+- Soil Status (DRY / WET)  
 
 ### ⚙️ Remote Control
-
-- Fan control
-- Irrigation motor
-- Lighting system
+- Fan  
+- Irrigation Motor  
+- Lighting System  
 
 ### ☁️ Cloud Integration
-
-- AWS IoT Core (MQTT)
-- Real-time telemetry updates
+- AWS IoT Core (MQTT)  
+- Real-time telemetry  
 
 ### 🌐 Dashboard
-
-- Live sensor data
-- Rule configuration UI
-- Device status tracking
+- Live sensor data  
+- Device status  
+- Control panel  
 
 ---
 
 ## 🏗️ System Architecture
 
-```
-        ┌───────────────┐
-        │   Sensors     │
-        │ (Temp/Hum/Soil)
-        └──────┬────────┘
-               │
-        ┌──────▼────────┐
-        │    ESP32      │
-        │ (Logic Engine)│
-        └──────┬────────┘
-               │
-     ┌─────────▼──────────┐
-     │   Backend API      │
-     │ (Node + Express)   │
-     └─────────┬──────────┘
-               │
-        ┌──────▼───────┐
-        │   MongoDB    │
-        └──────┬───────┘
-               │
-        ┌──────▼────────┐
-        │   AWS IoT     │
-        └──────┬────────┘
-               │
-        ┌──────▼────────┐
-        │ React Frontend│
-        └───────────────┘
-```
+     ┌───────────────┐
 
----
+    │   Sensors     │
+
+    │ (Temp/Hum/Soil)
+
+    └──────┬────────┘
+
+           │
+
+    ┌──────▼────────┐
+
+    │    ESP32      │
+
+    │ (Logic Engine)│
+
+    └──────┬────────┘
+
+           │
+ ┌─────────▼──────────┐
+ │   Backend API      │
+ │ (Node + Express)   │
+ └─────────┬──────────┘
+           │
+    ┌──────▼───────┐
+    │   MongoDB    │
+    └──────┬───────┘
+           │
+    ┌──────▼────────┐
+    │   AWS IoT     │
+    └──────┬────────┘
+           │
+    ┌──────▼────────┐
+    │ React Frontend│
+    └───────────────┘ 
 
 ## 🧩 Tech Stack
 
@@ -231,9 +246,10 @@ PORT=5000
 
 ## 👨‍💻 Contributors
 
-- Darshan Janganure
-- Pooja Madiwalar
-
+* Vikas Tirakannanavar – IoT system design, AWS integration, frontend dashboard, testing
+* Darshan Janganure – Backend development & automation logic
+* Pooja Madiwalar – UI support & testing
+  
 ---
 
 ## 📜 License
