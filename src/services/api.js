@@ -50,12 +50,14 @@ export async function getSensorHistoryRange(deviceId, { days = 3, limit } = {}) 
   return res.json();
 }
 
-export async function getEvidenceImages(deviceId, { limit = 6, skip = 0, category = "chamber" } = {}) {
+export async function getEvidenceImages(deviceId, { limit = 6, skip = 0, category = "chamber", profileId = "", profileName = "" } = {}) {
   const params = new URLSearchParams({
     limit: String(limit),
     skip: String(skip),
     category,
   });
+  if (profileId) params.set("profileId", profileId);
+  if (profileName) params.set("profileName", profileName);
 
   const res = await fetch(`${BASE}/evidence/${deviceId}?${params.toString()}`, {
     headers: getAuthHeaders(),
@@ -74,9 +76,11 @@ export function getEvidenceImageUrl(deviceId, imageId, category = "chamber") {
   return `${API_ORIGIN}/api/evidence/${deviceId}/${imageId}/file?${params.toString()}`;
 }
 
-export function getEvidenceExportUrl(deviceId, category = "chamber") {
+export function getEvidenceExportUrl(deviceId, category = "chamber", profileId = "", profileName = "") {
   const token = localStorage.getItem("token");
   const params = new URLSearchParams({ category });
+  if (profileId) params.set("profileId", profileId);
+  if (profileName) params.set("profileName", profileName);
   if (token) params.set("token", token);
   return `${API_ORIGIN}/api/evidence/${deviceId}/export?${params.toString()}`;
 }
@@ -87,8 +91,23 @@ export async function uploadEvidenceImage(deviceId, file, options = {}) {
     formData.append("image", file);
     formData.append("category", options.category || "chamber");
     formData.append("attachmentMode", options.attachmentMode || "automatic");
+    if (options.profileId) {
+      formData.append("profileId", options.profileId);
+    }
+    if (options.profileName) {
+      formData.append("profileName", options.profileName);
+    }
     if (options.selectedDate) {
       formData.append("selectedDate", options.selectedDate);
+    }
+    if (options.manualTemperature !== undefined && options.manualTemperature !== "") {
+      formData.append("manualTemperature", String(options.manualTemperature));
+    }
+    if (options.manualHumidity !== undefined && options.manualHumidity !== "") {
+      formData.append("manualHumidity", String(options.manualHumidity));
+    }
+    if (options.manualRecordedAt) {
+      formData.append("manualRecordedAt", options.manualRecordedAt);
     }
 
     const token = localStorage.getItem("token");

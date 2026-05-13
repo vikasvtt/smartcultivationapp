@@ -137,6 +137,8 @@ const imageSchema = new mongoose.Schema(
     uploadedAt: { type: Date, default: Date.now },
     attachmentMode: { type: String, default: "automatic" },
     selectedDate: { type: String, default: "" },
+    profileId: { type: String, default: "" },
+    profileName: { type: String, default: "" },
     telemetry: { type: Object, default: null },
   },
   {
@@ -144,7 +146,7 @@ const imageSchema = new mongoose.Schema(
   }
 );
 
-imageSchema.index({ deviceId: 1, uploadedAt: -1 });
+imageSchema.index({ deviceId: 1, profileId: 1, uploadedAt: -1 });
 
 const ImageRecord = mongoose.model("ImageRecord", imageSchema);
 
@@ -157,6 +159,8 @@ const outerEnvironmentImageSchema = new mongoose.Schema(
     uploadedAt: { type: Date, default: Date.now },
     attachmentMode: { type: String, default: "automatic" },
     selectedDate: { type: String, default: "" },
+    profileId: { type: String, default: "" },
+    profileName: { type: String, default: "" },
     telemetry: { type: Object, default: null },
   },
   {
@@ -164,7 +168,7 @@ const outerEnvironmentImageSchema = new mongoose.Schema(
   }
 );
 
-outerEnvironmentImageSchema.index({ deviceId: 1, uploadedAt: -1 });
+outerEnvironmentImageSchema.index({ deviceId: 1, profileId: 1, uploadedAt: -1 });
 
 const OuterEnvironmentImageRecord = mongoose.model("OuterEnvironmentImageRecord", outerEnvironmentImageSchema);
 
@@ -571,6 +575,65 @@ function getEvidenceModel(category) {
   return EVIDENCE_MODELS[getEvidenceCategory(category)];
 }
 
+async function assignLegacyChamberEvidenceToButtonMushroom() {
+  const buttonProfile = await ChamberProfile.findOne({
+    name: { $regex: /^button mushroom$/i },
+  })
+    .select("_id name")
+    .lean();
+
+  if (!buttonProfile?._id) {
+    return null;
+  }
+
+  await ImageRecord.updateMany(
+    {
+      $or: [
+        { profileId: { $exists: false } },
+        { profileId: "" },
+      ],
+    },
+    {
+      $set: {
+        profileId: String(buttonProfile._id),
+        profileName: buttonProfile.name || "Button Mushroom",
+      },
+    }
+  );
+
+  return buttonProfile;
+}
+
+async function resolveEvidenceProfile({ category, profileId, profileName }) {
+  if (category === "chamber") {
+    await assignLegacyChamberEvidenceToButtonMushroom();
+  }
+
+  if (profileId) {
+    const profile = await ChamberProfile.findById(profileId).select("_id name").lean();
+    if (!profile) {
+      throw new Error("Selected profile was not found");
+    }
+
+    return {
+      profileId: String(profile._id),
+      profileName: profile.name || profileName || "",
+    };
+  }
+
+  if (profileName) {
+    const profile = await ChamberProfile.findOne({ name: profileName }).select("_id name").lean();
+    if (profile?._id) {
+      return {
+        profileId: String(profile._id),
+        profileName: profile.name || profileName,
+      };
+    }
+  }
+
+  return { profileId: "", profileName: profileName || "" };
+}
+
 function buildImageResponse(doc, category = "chamber") {
   return {
     _id: doc._id,
@@ -581,8 +644,35 @@ function buildImageResponse(doc, category = "chamber") {
     uploadedAt: doc.uploadedAt,
     attachmentMode: doc.attachmentMode || "automatic",
     selectedDate: doc.selectedDate || "",
+    profileId: doc.profileId || "",
+    profileName: doc.profileName || "",
     telemetry: doc.telemetry || null,
     imagePath: `/api/evidence/${doc.deviceId}/${doc._id}/file?category=${getEvidenceCategory(category)}`,
+  };
+}
+
+function parseOptionalNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function buildManualOuterTelemetry(body, uploadedAt) {
+  const temperature = parseOptionalNumber(body.manualTemperature);
+  const humidity = parseOptionalNumber(body.manualHumidity);
+
+  if (temperature === null || humidity === null) {
+    throw new Error("Temperature and humidity are required for outer environment evidence");
+  }
+
+  const recordedAt = body.manualRecordedAt ? new Date(body.manualRecordedAt) : uploadedAt;
+  const time = Number.isNaN(recordedAt.getTime()) ? uploadedAt : recordedAt;
+
+  return {
+    temperature,
+    humidity,
+    time,
+    source: "manual",
   };
 }
 
@@ -599,8 +689,9 @@ function formatTelemetryValue(value) {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
-function buildEvidenceExportHtml({ category, deviceId, items }) {
-  const title = `${deviceId} ${category === "outer" ? "Outer Environment" : "Chamber"} Evidence Report`;
+function buildEvidenceExportHtml({ category, deviceId, profileName, items }) {
+  const scopeLabel = category === "outer" ? "Outer Environment" : "Chamber";
+  const title = `${deviceId} ${scopeLabel}${profileName ? ` - ${profileName}` : ""} Evidence Report`;
   const cards = items.map((item) => {
     const imageSrc = item.imageData
       ? `data:${item.contentType || "image/jpeg"};base64,${item.imageData.toString("base64")}`
@@ -614,6 +705,7 @@ function buildEvidenceExportHtml({ category, deviceId, items }) {
         </div>
         <div class="content">
           <h2>${escapeHtml(item.fileName || "Evidence image")}</h2>
+          <p class="meta"><strong>Profile:</strong> ${escapeHtml(item.profileName || "Unassigned")}</p>
           <p class="meta"><strong>Uploaded:</strong> ${escapeHtml(new Date(item.uploadedAt).toLocaleString())}</p>
           <p class="meta"><strong>Attachment mode:</strong> ${escapeHtml(item.attachmentMode || "automatic")}${item.selectedDate ? ` (${escapeHtml(item.selectedDate)})` : ""}</p>
           <p class="meta"><strong>Matched telemetry time:</strong> ${telemetry.time ? escapeHtml(new Date(telemetry.time).toLocaleString()) : "No telemetry matched"}</p>
@@ -738,16 +830,24 @@ app.get("/api/evidence/:deviceId", auth, async (req, res) => {
   try {
     const category = getEvidenceCategory(req.query.category);
     const EvidenceModel = getEvidenceModel(category);
+    const profile = await resolveEvidenceProfile({
+      category,
+      profileId: req.query.profileId || "",
+      profileName: req.query.profileName || "",
+    });
     const limit = Math.min(
       30,
       Math.max(1, Number.parseInt(req.query.limit, 10) || 6)
     );
     const skip = Math.max(0, Number.parseInt(req.query.skip, 10) || 0);
     const query = { deviceId: req.params.deviceId };
+    if (profile.profileId) {
+      query.profileId = profile.profileId;
+    }
 
     const [images, total] = await Promise.all([
       EvidenceModel.find(query)
-        .select("_id deviceId fileName contentType uploadedAt attachmentMode selectedDate telemetry")
+        .select("_id deviceId fileName contentType uploadedAt attachmentMode selectedDate profileId profileName telemetry")
         .sort({ uploadedAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -762,6 +862,7 @@ app.get("/api/evidence/:deviceId", auth, async (req, res) => {
       hasMore: skip + images.length < total,
       nextSkip: skip + images.length,
       category,
+      profile,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -772,14 +873,24 @@ app.get("/api/evidence/:deviceId/export", auth, async (req, res) => {
   try {
     const category = getEvidenceCategory(req.query.category);
     const EvidenceModel = getEvidenceModel(category);
-    const items = await EvidenceModel.find({ deviceId: req.params.deviceId })
-      .select("deviceId fileName contentType imageData uploadedAt attachmentMode selectedDate telemetry")
+    const profile = await resolveEvidenceProfile({
+      category,
+      profileId: req.query.profileId || "",
+      profileName: req.query.profileName || "",
+    });
+    const query = { deviceId: req.params.deviceId };
+    if (profile.profileId) {
+      query.profileId = profile.profileId;
+    }
+    const items = await EvidenceModel.find(query)
+      .select("deviceId fileName contentType imageData uploadedAt attachmentMode selectedDate profileId profileName telemetry")
       .sort({ uploadedAt: -1 })
       .allowDiskUse(true);
 
     const html = buildEvidenceExportHtml({
       category,
       deviceId: req.params.deviceId,
+      profileName: profile.profileName,
       items,
     });
 
@@ -821,11 +932,19 @@ app.post("/api/evidence/:deviceId", auth, imageUpload.single("image"), async (re
     const { deviceId } = req.params;
     const category = getEvidenceCategory(req.body.category);
     const EvidenceModel = getEvidenceModel(category);
-    const attachmentMode = req.body.attachmentMode === "custom" ? "custom" : "automatic";
-    const selectedDate = req.body.selectedDate || "";
+    const requestedAttachmentMode = req.body.attachmentMode === "custom" ? "custom" : "automatic";
+    const profile = await resolveEvidenceProfile({
+      category,
+      profileId: req.body.profileId || "",
+      profileName: req.body.profileName || "",
+    });
 
     if (!req.file) {
       return res.status(400).json({ error: "No image uploaded" });
+    }
+
+    if (!profile.profileId) {
+      return res.status(400).json({ error: "Select a mushroom profile before uploading evidence" });
     }
 
     if (!req.file.mimetype?.startsWith("image/")) {
@@ -833,9 +952,13 @@ app.post("/api/evidence/:deviceId", auth, imageUpload.single("image"), async (re
     }
 
     const uploadedAt = new Date();
-    const telemetry = attachmentMode === "custom"
-      ? await findNearestTelemetryForSelectedDate(deviceId, selectedDate, uploadedAt)
-      : await findNearestTelemetry(deviceId, uploadedAt);
+    const attachmentMode = category === "outer" ? "manual" : requestedAttachmentMode;
+    const selectedDate = category === "chamber" ? (req.body.selectedDate || "") : "";
+    const telemetry = category === "outer"
+      ? buildManualOuterTelemetry(req.body, uploadedAt)
+      : attachmentMode === "custom"
+        ? await findNearestTelemetryForSelectedDate(deviceId, selectedDate, uploadedAt)
+        : await findNearestTelemetry(deviceId, uploadedAt);
 
     const imageRecord = await EvidenceModel.create({
       deviceId,
@@ -845,6 +968,8 @@ app.post("/api/evidence/:deviceId", auth, imageUpload.single("image"), async (re
       uploadedAt,
       attachmentMode,
       selectedDate,
+      profileId: profile.profileId,
+      profileName: profile.profileName,
       telemetry,
     });
 

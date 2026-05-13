@@ -18,6 +18,7 @@ import { useAuth } from "../context/AuthContext";
 import {
   deleteEvidenceImage,
   getAllLatest,
+  getChamberProfiles,
   getEvidenceExportUrl,
   getEvidenceImageUrl,
   getEvidenceImages,
@@ -130,6 +131,9 @@ export default function Evidence() {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("chamber");
+  const [profiles, setProfiles] = useState([]);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [selectedProfileName, setSelectedProfileName] = useState("");
   const [images, setImages] = useState([]);
   const [hasMoreImages, setHasMoreImages] = useState(false);
   const [nextImageSkip, setNextImageSkip] = useState(0);
@@ -140,6 +144,9 @@ export default function Evidence() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [attachmentMode, setAttachmentMode] = useState("automatic");
   const [selectedDate, setSelectedDate] = useState("");
+  const [manualTemperature, setManualTemperature] = useState("");
+  const [manualHumidity, setManualHumidity] = useState("");
+  const [manualRecordedDate, setManualRecordedDate] = useState("");
   const [zoomedImage, setZoomedImage] = useState(null);
   const [imageError, setImageError] = useState("");
   const [imageSuccess, setImageSuccess] = useState("");
@@ -149,14 +156,26 @@ export default function Evidence() {
     [selectedCategory]
   );
 
-  const loadImages = useCallback(async (deviceId, category, { append = false, skip = 0 } = {}) => {
+  const loadImages = useCallback(async (deviceId, category, { append = false, skip = 0, profileId = "", profileName = "" } = {}) => {
     if (!deviceId) return;
 
     try {
       setImagesLoading(true);
       setImageError("");
-      const data = await getEvidenceImages(deviceId, { limit: 6, skip, category });
-      const items = Array.isArray(data) ? data : data.items || [];
+      const data = await getEvidenceImages(deviceId, {
+        limit: 6,
+        skip,
+        category,
+        profileId,
+        profileName,
+      });
+      const items = (Array.isArray(data) ? data : data.items || []).filter((item) => {
+        if (profileId && item.profileId) return item.profileId === profileId;
+        if (profileName && item.profileName) {
+          return String(item.profileName).trim().toLowerCase() === String(profileName).trim().toLowerCase();
+        }
+        return true;
+      });
       setImages((prev) => (append ? [...prev, ...items] : items));
       setHasMoreImages(Array.isArray(data) ? false : Boolean(data.hasMore));
       setNextImageSkip(Array.isArray(data) ? items.length : data.nextSkip || items.length);
@@ -178,21 +197,40 @@ export default function Evidence() {
       try {
         setLoading(true);
 
+        const [profileList, latest] = await Promise.all([
+          getChamberProfiles(),
+          user.role === "admin" ? getAllLatest() : Promise.resolve([]),
+        ]);
+
+        setProfiles(profileList || []);
+        const buttonProfile = (profileList || []).find(
+          (profile) => String(profile.name || "").trim().toLowerCase() === "button mushroom"
+        );
+        const initialProfileId = buttonProfile?._id || profileList?.[0]?._id || "";
+        const initialProfileName = buttonProfile?.name || profileList?.[0]?.name || "";
+        setSelectedProfileId(initialProfileId);
+        setSelectedProfileName(initialProfileName);
+
         if (user.role === "admin") {
-          const latest = await getAllLatest();
           const deviceIds = latest.map((item) => item.deviceId).filter(Boolean);
           const initialDevice = deviceIds[0] || "";
           setDevices(deviceIds);
           setSelectedDevice(initialDevice);
           if (initialDevice) {
-            await loadImages(initialDevice, "chamber");
+            await loadImages(initialDevice, "chamber", {
+              profileId: initialProfileId,
+              profileName: initialProfileName,
+            });
           }
         } else {
           const assigned = user.deviceId || "";
           setDevices(assigned ? [assigned] : []);
           setSelectedDevice(assigned);
           if (assigned) {
-            await loadImages(assigned, "chamber");
+            await loadImages(assigned, "chamber", {
+              profileId: initialProfileId,
+              profileName: initialProfileName,
+            });
           }
         }
       } catch (err) {
@@ -206,20 +244,83 @@ export default function Evidence() {
   }, [loadImages, navigate, user]);
 
   useEffect(() => {
-    if (!user || !selectedDevice) return;
-    loadImages(selectedDevice, selectedCategory);
-  }, [loadImages, selectedCategory, selectedDevice, user]);
+    if (!user || !selectedDevice || !selectedProfileId) return;
+    loadImages(selectedDevice, selectedCategory, {
+      profileId: selectedProfileId,
+      profileName: selectedProfileName,
+    });
+  }, [loadImages, selectedCategory, selectedDevice, selectedProfileId, selectedProfileName, user]);
 
   const triggerDownload = useCallback(() => {
-    if (!selectedDevice) return;
-    const url = getEvidenceExportUrl(selectedDevice, selectedCategory);
+    if (!selectedDevice || !selectedProfileId) return;
+    const url = getEvidenceExportUrl(
+      selectedDevice,
+      selectedCategory,
+      selectedProfileId,
+      selectedProfileName
+    );
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `${selectedDevice}-${selectedCategory}-evidence-report.html`;
+    anchor.download = `${selectedDevice}-${selectedCategory}-${(selectedProfileName || "profile").replace(/\s+/g, "-").toLowerCase()}-evidence-report.html`;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
-  }, [selectedCategory, selectedDevice]);
+  }, [selectedCategory, selectedDevice, selectedProfileId, selectedProfileName]);
+
+  const isOuterCategory = selectedCategory === "outer";
+  const chamberToggleSx = {
+    border: "1px solid rgba(74,222,128,0.16) !important",
+    borderRadius: "10px !important",
+    color: "rgba(232,245,233,0.72)",
+    background: "transparent",
+    textTransform: "none",
+    px: 2,
+    "&.Mui-selected, &.Mui-selected:hover": {
+      color: "#f5fff7",
+      background: "linear-gradient(135deg, rgba(74,222,128,0.28), rgba(34,197,94,0.18))",
+    },
+  };
+  const outerToggleSx = {
+    border: "1px solid rgba(56,189,248,0.16) !important",
+    borderRadius: "10px !important",
+    color: "rgba(232,245,233,0.72)",
+    background: "transparent",
+    textTransform: "none",
+    px: 2,
+    "&.Mui-selected, &.Mui-selected:hover": {
+      color: "#f5fcff",
+      background: "linear-gradient(135deg, rgba(56,189,248,0.28), rgba(14,165,233,0.18))",
+    },
+  };
+  const selectSx = {
+    color: "#f5fff7",
+    borderRadius: "10px",
+    fontFamily: "'JetBrains Mono', monospace",
+    "& .MuiOutlinedInput-notchedOutline": {
+      borderColor: "rgba(74,222,128,0.2)",
+    },
+    "& .MuiSvgIcon-root": { color: "rgba(232,245,233,0.78)" },
+    "& .MuiSelect-select": { color: "#f5fff7" },
+  };
+  const selectMenuProps = {
+    PaperProps: {
+      sx: {
+        background: "#08150d",
+        color: "#e8f5e9",
+        border: "1px solid rgba(74,222,128,0.16)",
+        "& .MuiMenuItem-root": {
+          color: "#dff7e3",
+        },
+        "& .MuiMenuItem-root.Mui-selected": {
+          color: "#ffffff",
+          background: "rgba(74,222,128,0.2)",
+        },
+        "& .MuiMenuItem-root.Mui-selected:hover": {
+          background: "rgba(74,222,128,0.28)",
+        },
+      },
+    },
+  };
 
   if (!user) return null;
 
@@ -316,15 +417,8 @@ export default function Evidence() {
                   <Select
                     value={selectedDevice}
                     onChange={(event) => setSelectedDevice(event.target.value)}
-                    sx={{
-                      color: "#e8f5e9",
-                      borderRadius: "10px",
-                      fontFamily: "'JetBrains Mono', monospace",
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "rgba(74,222,128,0.2)",
-                      },
-                      "& .MuiSvgIcon-root": { color: "rgba(232,245,233,0.5)" },
-                    }}
+                    sx={selectSx}
+                    MenuProps={selectMenuProps}
                   >
                     {devices.map((deviceId) => (
                       <MenuItem key={deviceId} value={deviceId}>
@@ -354,38 +448,59 @@ export default function Evidence() {
               >
                 <ToggleButton
                   value="chamber"
-                  sx={{
-                    border: "1px solid rgba(74,222,128,0.16) !important",
-                    borderRadius: "10px !important",
-                    color: selectedCategory === "chamber" ? "#4ade80" : "rgba(232,245,233,0.55)",
-                    background: selectedCategory === "chamber" ? "rgba(74,222,128,0.1)" : "transparent",
-                    textTransform: "none",
-                    px: 2,
-                  }}
+                  sx={chamberToggleSx}
                 >
                   Chamber
                 </ToggleButton>
                 <ToggleButton
                   value="outer"
-                  sx={{
-                    border: "1px solid rgba(56,189,248,0.16) !important",
-                    borderRadius: "10px !important",
-                    color: selectedCategory === "outer" ? "#38bdf8" : "rgba(232,245,233,0.55)",
-                    background: selectedCategory === "outer" ? "rgba(56,189,248,0.1)" : "transparent",
-                    textTransform: "none",
-                    px: 2,
-                  }}
+                  sx={outerToggleSx}
                 >
                   Outer Environment
                 </ToggleButton>
               </ToggleButtonGroup>
             </Box>
+
+            <Box>
+              <Typography sx={{ fontSize: 11, color: "rgba(232,245,233,0.4)", mb: 0.7 }}>
+                Mushroom Profile
+              </Typography>
+              <FormControl size="small" sx={{ minWidth: 220 }}>
+                <Select
+                  value={selectedProfileId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    const nextProfile = profiles.find((profile) => profile._id === nextId);
+                    setSelectedProfileId(nextId);
+                    setSelectedProfileName(nextProfile?.name || "");
+                  }}
+                  sx={{
+                    ...selectSx,
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "rgba(251,191,36,0.2)",
+                    },
+                  }}
+                  MenuProps={selectMenuProps}
+                >
+                  {profiles.map((profile) => (
+                    <MenuItem key={profile._id} value={profile._id}>
+                      {profile.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
           </Box>
 
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
             <Button
-              onClick={() => loadImages(selectedDevice, selectedCategory)}
-              disabled={!selectedDevice || imagesLoading}
+              onClick={() =>
+                loadImages(selectedDevice, selectedCategory, {
+                  profileId: selectedProfileId,
+                  profileName: selectedProfileName,
+                })
+              }
+              disabled={!selectedDevice || !selectedProfileId || imagesLoading}
               sx={{
                 color: "#38bdf8",
                 border: "1px solid rgba(56,189,248,0.22)",
@@ -397,7 +512,7 @@ export default function Evidence() {
             </Button>
             <Button
               onClick={triggerDownload}
-              disabled={!selectedDevice}
+              disabled={!selectedDevice || !selectedProfileId}
               sx={{
                 color: "#fbbf24",
                 border: "1px solid rgba(251,191,36,0.22)",
@@ -423,64 +538,109 @@ export default function Evidence() {
         >
           <Typography sx={{ fontSize: 20, mb: 0.7 }}>{categoryLabel} Evidence</Typography>
           <Typography sx={{ fontSize: 12, color: "rgba(232,245,233,0.45)", mb: 2 }}>
-            Upload images for the {categoryLabel.toLowerCase()} and attach the nearest telemetry automatically, or pick a custom date to match the upload time-of-day on that date.
+            {isOuterCategory
+              ? "Upload outer environment images under the selected mushroom profile and enter temperature and humidity manually for each evidence item."
+              : `Upload images for the ${categoryLabel.toLowerCase()} under the selected mushroom profile and attach the nearest telemetry automatically, or pick a custom date to match the upload time-of-day on that date.`}
           </Typography>
 
           <Box sx={{ mb: 2, display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
-            <ToggleButtonGroup
-              exclusive
-              value={attachmentMode}
-              onChange={(_, value) => {
-                if (value) setAttachmentMode(value);
-              }}
-              sx={{ gap: 1 }}
-            >
-              <ToggleButton
-                value="automatic"
-                sx={{
-                  border: "1px solid rgba(74,222,128,0.16) !important",
-                  borderRadius: "10px !important",
-                  color: attachmentMode === "automatic" ? "#4ade80" : "rgba(232,245,233,0.55)",
-                  background: attachmentMode === "automatic" ? "rgba(74,222,128,0.1)" : "transparent",
-                  textTransform: "none",
-                  px: 2,
-                }}
-              >
-                Automatic Data
-              </ToggleButton>
-              <ToggleButton
-                value="custom"
-                sx={{
-                  border: "1px solid rgba(56,189,248,0.16) !important",
-                  borderRadius: "10px !important",
-                  color: attachmentMode === "custom" ? "#38bdf8" : "rgba(232,245,233,0.55)",
-                  background: attachmentMode === "custom" ? "rgba(56,189,248,0.1)" : "transparent",
-                  textTransform: "none",
-                  px: 2,
-                }}
-              >
-                Custom Date Data
-              </ToggleButton>
-            </ToggleButtonGroup>
+            {isOuterCategory ? (
+              <>
+                <TextField
+                  type="number"
+                  size="small"
+                  label="Temperature"
+                  value={manualTemperature}
+                  onChange={(event) => setManualTemperature(event.target.value)}
+                  sx={{
+                    minWidth: 190,
+                    "& .MuiInputLabel-root": { color: "rgba(232,245,233,0.62)" },
+                    "& .MuiInputLabel-root.Mui-focused": { color: "#7dd3fc" },
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "10px",
+                      color: "#e8f5e9",
+                      "& fieldset": { borderColor: "rgba(56,189,248,0.18)" },
+                      "&:hover fieldset": { borderColor: "rgba(56,189,248,0.32)" },
+                    },
+                  }}
+                />
+                <TextField
+                  type="number"
+                  size="small"
+                  label="Humidity"
+                  value={manualHumidity}
+                  onChange={(event) => setManualHumidity(event.target.value)}
+                  sx={{
+                    minWidth: 190,
+                    "& .MuiInputLabel-root": { color: "rgba(232,245,233,0.62)" },
+                    "& .MuiInputLabel-root.Mui-focused": { color: "#7dd3fc" },
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "10px",
+                      color: "#e8f5e9",
+                      "& fieldset": { borderColor: "rgba(56,189,248,0.18)" },
+                      "&:hover fieldset": { borderColor: "rgba(56,189,248,0.32)" },
+                    },
+                  }}
+                />
+                <TextField
+                  type="date"
+                  size="small"
+                  label="Recorded Date"
+                  value={manualRecordedDate}
+                  onChange={(event) => setManualRecordedDate(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{
+                    minWidth: 190,
+                    "& .MuiInputLabel-root": { color: "rgba(232,245,233,0.62)" },
+                    "& .MuiInputLabel-root.Mui-focused": { color: "#7dd3fc" },
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: "10px",
+                      color: "#e8f5e9",
+                      "& fieldset": { borderColor: "rgba(56,189,248,0.18)" },
+                      "&:hover fieldset": { borderColor: "rgba(56,189,248,0.32)" },
+                    },
+                    "& input": { colorScheme: "dark" },
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <ToggleButtonGroup
+                  exclusive
+                  value={attachmentMode}
+                  onChange={(_, value) => {
+                    if (value) setAttachmentMode(value);
+                  }}
+                  sx={{ gap: 1 }}
+                >
+                  <ToggleButton value="automatic" sx={chamberToggleSx}>
+                    Automatic Data
+                  </ToggleButton>
+                  <ToggleButton value="custom" sx={outerToggleSx}>
+                    Custom Date Data
+                  </ToggleButton>
+                </ToggleButtonGroup>
 
-            {attachmentMode === "custom" && (
-              <TextField
-                type="date"
-                size="small"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
-                InputLabelProps={{ shrink: true }}
-                sx={{
-                  minWidth: 190,
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: "10px",
-                    color: "#e8f5e9",
-                    "& fieldset": { borderColor: "rgba(56,189,248,0.18)" },
-                    "&:hover fieldset": { borderColor: "rgba(56,189,248,0.32)" },
-                  },
-                  "& input": { colorScheme: "dark" },
-                }}
-              />
+                {attachmentMode === "custom" && (
+                  <TextField
+                    type="date"
+                    size="small"
+                    value={selectedDate}
+                    onChange={(event) => setSelectedDate(event.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                    sx={{
+                      minWidth: 190,
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: "10px",
+                        color: "#e8f5e9",
+                        "& fieldset": { borderColor: "rgba(56,189,248,0.18)" },
+                        "&:hover fieldset": { borderColor: "rgba(56,189,248,0.32)" },
+                      },
+                      "& input": { colorScheme: "dark" },
+                    }}
+                  />
+                )}
+              </>
             )}
           </Box>
 
@@ -509,9 +669,13 @@ export default function Evidence() {
 
             <Button
               onClick={async () => {
-                if (!selectedDevice || !selectedFile) return;
-                if (attachmentMode === "custom" && !selectedDate) {
+                if (!selectedDevice || !selectedFile || !selectedProfileId) return;
+                if (!isOuterCategory && attachmentMode === "custom" && !selectedDate) {
                   setImageError("Please choose a custom date before uploading.");
+                  return;
+                }
+                if (isOuterCategory && (!manualTemperature || !manualHumidity || !manualRecordedDate)) {
+                  setImageError("Please enter temperature, humidity, and date for outer environment evidence.");
                   return;
                 }
 
@@ -521,19 +685,35 @@ export default function Evidence() {
                   setImageSuccess("");
                   const uploaded = await uploadEvidenceImage(selectedDevice, selectedFile, {
                     category: selectedCategory,
-                    attachmentMode,
-                    selectedDate,
+                    attachmentMode: isOuterCategory ? "manual" : attachmentMode,
+                    selectedDate: isOuterCategory ? "" : selectedDate,
+                    profileId: selectedProfileId,
+                    profileName: selectedProfileName,
+                    manualTemperature: isOuterCategory ? manualTemperature : "",
+                    manualHumidity: isOuterCategory ? manualHumidity : "",
+                    manualRecordedAt: isOuterCategory && manualRecordedDate ? `${manualRecordedDate}T12:00:00` : "",
                   });
                   setImages((prev) => [uploaded, ...prev]);
                   setSelectedFile(null);
-                  setImageSuccess(`${categoryLabel} evidence uploaded successfully`);
+                  if (isOuterCategory) {
+                    setManualTemperature("");
+                    setManualHumidity("");
+                    setManualRecordedDate("");
+                  }
+                  setImageSuccess(`${categoryLabel} evidence uploaded successfully for ${selectedProfileName}`);
                 } catch (err) {
                   setImageError(err.message || "Failed to upload image");
                 } finally {
                   setUploadingImage(false);
                 }
               }}
-              disabled={!selectedDevice || !selectedFile || uploadingImage}
+              disabled={
+                !selectedDevice ||
+                !selectedFile ||
+                !selectedProfileId ||
+                uploadingImage ||
+                (isOuterCategory && (!manualTemperature || !manualHumidity || !manualRecordedDate))
+              }
               sx={{
                 color: "#020c04",
                 background: "linear-gradient(135deg,#4ade80,#86efac)",
@@ -564,7 +744,7 @@ export default function Evidence() {
               }}
             >
               <Typography sx={{ color: "rgba(232,245,233,0.55)" }}>
-                No {categoryLabel.toLowerCase()} evidence uploaded for this device yet.
+                No {categoryLabel.toLowerCase()} evidence uploaded for {selectedProfileName || "this profile"} on this device yet.
               </Typography>
             </Box>
           ) : (
@@ -651,12 +831,27 @@ export default function Evidence() {
                     <Typography
                       sx={{
                         fontSize: 11,
+                        color: "#fbbf24",
+                        fontFamily: "'JetBrains Mono', monospace",
+                        mb: 0.8,
+                      }}
+                    >
+                      Profile: {image.profileName || selectedProfileName || "Unassigned"}
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        fontSize: 11,
                         color: image.category === "outer" ? "#38bdf8" : "#4ade80",
                         fontFamily: "'JetBrains Mono', monospace",
                         mb: 1.2,
                       }}
                     >
-                      Match mode: {image.attachmentMode === "custom" ? `custom date (${formatSelectedDate(image.selectedDate)})` : "automatic"}
+                      Match mode: {image.attachmentMode === "manual"
+                        ? "manual entry"
+                        : image.attachmentMode === "custom"
+                          ? `custom date (${formatSelectedDate(image.selectedDate)})`
+                          : "automatic"}
                     </Typography>
 
                     {image.telemetry ? (
@@ -693,7 +888,14 @@ export default function Evidence() {
 
               {hasMoreImages && (
                 <Button
-                  onClick={() => loadImages(selectedDevice, selectedCategory, { append: true, skip: nextImageSkip })}
+                  onClick={() =>
+                    loadImages(selectedDevice, selectedCategory, {
+                      append: true,
+                      skip: nextImageSkip,
+                      profileId: selectedProfileId,
+                      profileName: selectedProfileName,
+                    })
+                  }
                   disabled={imagesLoading}
                   sx={{
                     justifySelf: "center",
